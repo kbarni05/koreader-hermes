@@ -63,7 +63,7 @@ def main():
     package = manifest["packages"][0]
     package.update(version=version if args.stable else "", prerelease_version="" if args.stable else version,
                    source_asset=alias.name, published_at=published, size=str(alias.stat().st_size),
-                   description="Manage Kobo files and plugins with Hermes on a NAS; includes verified updates and rollback for the whole project. Separate NAS setup required.")
+                   description="Connect Hermes on a NAS to Kobo with LAN discovery, on-device token generation and approved pairing; includes file/plugin tools and whole-project updates.")
     write_json(ROOT / "manifest.json", manifest)
     versions_path = ROOT / "versions/hermes.json"
     versions = json.loads(versions_path.read_text())

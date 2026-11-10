@@ -1,4 +1,4 @@
-# Hermes ↔ Kobo KOReader v2.0
+# Hermes ↔ Kobo KOReader v2.5
 
 Connect **Nous Research's Hermes Agent running on your NAS** to your Kobo over Wi-Fi. This project contains a KOReader plugin and a dependency-free Python MCP bridge that Hermes starts on the NAS.
 
@@ -13,6 +13,46 @@ Hermes on NAS → MCP subprocess on NAS → authenticated HTTP over LAN → KORe
 - List plugins, install new plugins, edit plugin files, save enable/disable settings, and remove plugins to recovery storage.
 - Keep file writes and plugin changes under separate switches on the Kobo. Both start disabled.
 - Use the built-in Update manager to update the Kobo plugin or request a coordinated update of the complete NAS project and Kobo plugin, with backups and rollback.
+- Discover the Kobo automatically on your LAN, generate its token on-device, and pair the NAS with a temporary code and Kobo approval.
+
+## New in 2.5: automatic discovery and pairing
+
+1. Install/update **both** the v2.5 Kobo plugin and the complete NAS kit, then restart KOReader and Hermes. Existing static IP/token settings continue to work, and existing tokens are preserved.
+2. On the Kobo, open **Hermes NAS bridge → Connection setup → Pair with NAS (2 minutes)**. This starts the bridge if needed and shows a temporary code. A missing shared token is generated automatically from the operating system's secure random source.
+3. On the NAS, in the project directory, run:
+
+   ```sh
+   python3 bridge/hermes_kobo_mcp.py --discover
+   python3 bridge/hermes_kobo_mcp.py --pair
+   ```
+
+4. Enter the displayed Kobo code at the hidden prompt, then **approve the NAS on the Kobo screen**. The NAS stores the token in a private file with mode `600`; the command output does not print the token.
+5. In Hermes's MCP entry, set `KOBO_URL: "auto"`. Remove the old `KOBO_TOKEN` entry when using the saved pairing profile, and make sure the MCP subprocess uses the same OS user and connection-file path as the pairing command. Restart Hermes, then run `--doctor` or ask Hermes to check the Kobo.
+
+The default profile is `~/.local/state/hermes-kobo/connection.json` (or under `XDG_STATE_HOME`). Set `HERMES_CONNECTION_FILE` to an absolute path outside the project when you need an explicit/persistent location. The pairing command and MCP environment must use the **same path**. The profile is preserved by whole-project updates.
+
+Use an interactive terminal for the hidden code prompt (`docker exec -it` in a container). A headless setup may supply the temporary code through `KOBO_PAIRING_CODE`; local Kobo approval is still required. Do not save the temporary code in the permanent MCP configuration.
+
+Automatic discovery uses UDP **8676** on the local IPv4 network; the file/plugin API uses TCP **8675** by default. There is no subnet sweep. After pairing, the NAS verifies an HMAC proof bound to a fresh nonce, device ID, address, port and version before choosing an automatic endpoint. The long token is not included in UDP discovery messages. Discovery results shown before pairing are unverified; multiple matching endpoints require an explicit choice rather than sending the token to the first response.
+
+Additional setup commands:
+
+```sh
+# Choose a particular Kobo if more than one is found.
+python3 bridge/hermes_kobo_mcp.py --pair --device-id DEVICE_ID_FROM_DISCOVERY
+
+# Supply an interface broadcast address if the default broadcast does not work.
+python3 bridge/hermes_kobo_mcp.py --discover --discovery-target 192.168.1.255
+
+# Pair directly when UDP/broadcast is blocked. This saves a manual URL profile.
+python3 bridge/hermes_kobo_mcp.py --pair --url http://192.168.1.123:8675
+```
+
+For automatic discovery with a specific interface, set `KOBO_DISCOVERY_TARGETS` to a comma-separated list of local IPv4/broadcast addresses. Optional `KOBO_DEVICE_ID` pins a selection. The discovery port can be overridden on the NAS with `KOBO_DISCOVERY_PORT` for a deliberately forwarded setup; the Kobo normally listens on 8676. A manually paired URL can be forced into discovery mode later with `KOBO_URL=auto`.
+
+The Kobo's **Connection setup** menu also provides **Generate / rotate token**, **Show shared token**, **Set device name**, **Automatic LAN discovery**, and **Close pairing window**. Token rotation stops the bridge and invalidates old saved credentials; pair the NAS again. Five wrong pairing codes close the current 2-minute window. The code alone does not release a token: local approval is required, and a successful claim can be used only once.
+
+Auto mode caches a verified address for 30 seconds and discovers again on later calls after the cache expires or a connection failure. File writes are never replayed automatically after a timeout. Discovery and pairing use the same trusted-LAN model as the existing HTTP bridge; pairing is not an encrypted transport. The Kobo must remain awake with the bridge running. Suspending the Kobo closes discovery and pairing along with the bridge.
 
 The plugin provides device tools; Hermes remains the assistant on the NAS. There is no chat UI on the Kobo, shell execution endpoint, or dependency on a particular model provider.
 
@@ -30,12 +70,11 @@ Open **Hermes NAS bridge → Update manager**:
 - **Update whole project via NAS** queues a request for the running NAS bridge to update the complete managed NAS project and the matching Kobo plugin. Enable **Allow project updates** first, and enable **Preview updates** for preview releases. Keep the bridge running and the Kobo awake.
 - **Restore previous Kobo version** uses the plugin backup. For a coordinated rollback of both sides, use the Hermes tool or NAS command below instead.
 
-To enable requests from the Kobo menu, add this variable to the existing `kobo` MCP entry in Hermes configuration on the NAS:
+To enable requests from the Kobo menu, add `HERMES_DEVICE_UPDATE_REQUESTS` to the existing MCP environment. Keep your paired auto connection or your existing manual URL/token settings:
 
 ```yaml
 env:
-  KOBO_URL: "http://192.168.1.123:8675"
-  KOBO_TOKEN: "YOUR_EXISTING_TOKEN"
+  KOBO_URL: "auto"
   HERMES_DEVICE_UPDATE_REQUESTS: "1"
 ```
 
@@ -53,7 +92,7 @@ Hermes has three built-in project tools:
 
 For example, ask Hermes: “Check for project updates, including previews, and update both my NAS project and Kobo to the version you found.” The update tool requires the exact checked `expected_version`. The Kobo must permit project updates; previews also require the Kobo's Preview updates switch. General file/plugin write switches do not grant this updater permission.
 
-Or, with `KOBO_URL` and `KOBO_TOKEN` already set on a Linux/Unix NAS:
+Or, with a saved pairing profile or a manual URL/token configured on a Linux/Unix NAS:
 
 ```sh
 python3 bridge/hermes_kobo_mcp.py --check-updates
@@ -61,7 +100,7 @@ python3 bridge/hermes_kobo_mcp.py --update-project --expected-version X.Y.Z
 python3 bridge/hermes_kobo_mcp.py --rollback-project TRANSACTION_ID
 ```
 
-Replace `X.Y.Z` with the checked release version. Add `--allow-preview` only when deliberately selecting a preview. Version `2.0.1` is a regular release and works without preview mode; `2.0.0` remains an earlier preview. The updater refuses downgrades, changed releases, checksum mismatches, malformed source and locally edited managed NAS files.
+Replace `X.Y.Z` with the checked release version. Add `--allow-preview` only when deliberately selecting a preview. Version `2.5.0` is a regular release and works without preview mode. The updater refuses downgrades, changed releases, checksum mismatches, malformed source and locally edited managed NAS files.
 
 **Whole project** means the release-managed files: the NAS bridge and updater, plugin source, version files, documentation, test files and package metadata. It does not update Hermes Agent itself, KOReader, Kobo firmware, your books, credentials, or other plugins. `.env`, Hermes configuration, reader settings, `.git` and untracked local files are preserved. Move personal modifications out of managed files or reconcile them before updating.
 
@@ -89,7 +128,7 @@ Once the repository is public, open **ZenPM → Sources → Add repository** and
 https://raw.githubusercontent.com/kbarni05/koreader-hermes/main/
 ```
 
-Refresh sources, find **Hermes NAS bridge**, and install `v2.0.1`. Beta updates are not required for this regular release. This unsigned source may show a `warn-unsigned` trust label. Restart KOReader afterward.
+Refresh sources, find **Hermes NAS bridge**, and install `v2.5.0`. Beta updates are not required for this regular release. This unsigned source may show a `warn-unsigned` trust label. Restart KOReader afterward.
 
 ZenPM installs only the Kobo plugin. Continue with **Set up the NAS bridge** below to connect Hermes, configure the shared token, and start the device bridge. Do not choose the complete NAS kit ZIP as a KOReader plugin package.
 
@@ -114,21 +153,24 @@ The source selects the plugin-only `hermes.koplugin.zip` release asset. Its size
        fs.lua
        api.lua
        server.lua
+       updater.lua
+       version.lua
+       connection.lua
    ```
 
    With the plugin-only ZIP, extract it into `plugins/`. Avoid an extra nested `hermes.koplugin/hermes.koplugin/` folder.
 3. Safely eject the Kobo and restart KOReader. Open **Tools → More tools → Hermes NAS bridge**. Menu placement can vary with KOReader version. If the plugin is disabled, enable it in Plugin management and restart.
-4. Turn Wi-Fi on. Find the Kobo's IP in KOReader's Network information or your router. A DHCP reservation makes the address stable.
+4. Turn Wi-Fi on and use **Connection setup → Pair with NAS**. Find the Kobo's IP in Network information only if you need the manual connection fallback.
 
 ## 2. Set up the NAS bridge
 
-Copy the complete project to the NAS. Python **3.9 or newer** on Linux/Unix is required; no pip packages are needed. On the NAS, generate a token:
+Copy the complete project to the NAS. Python **3.9 or newer** on Linux/Unix is required; no pip packages are needed. Pair from the same OS user that runs Hermes:
 
 ```sh
-python3 /absolute/path/to/koreader-hermes/bridge/hermes_kobo_mcp.py --generate-token
+python3 /absolute/path/to/koreader-hermes/bridge/hermes_kobo_mcp.py --pair
 ```
 
-Keep that token private. On the Kobo, use **Hermes NAS bridge → Set shared token** and enter the same token. You can use KOReader's keyboard to paste it if your setup supports clipboard input. The allowed token format is 32–128 letters, digits, underscores or hyphens.
+Open the pairing window on the Kobo first, enter its temporary code on the NAS, and approve on the Kobo. See the v2.5 section above for the profile location. Existing users can retain a manual `KOBO_URL` and `KOBO_TOKEN`; tokens can also still be generated with `--generate-token` and entered through **Set shared token**.
 
 Open `~/.hermes/config.yaml` **on the NAS**, and merge this into the existing configuration, preserving any existing MCP servers:
 
@@ -138,21 +180,21 @@ mcp_servers:
     command: python3
     args: ["/absolute/path/to/koreader-hermes/bridge/hermes_kobo_mcp.py"]
     env:
-      KOBO_URL: "http://192.168.1.123:8675"
-      KOBO_TOKEN: "YOUR_GENERATED_TOKEN"
+      KOBO_URL: "auto"
+      # Optional: must match the path used by the pairing command.
+      # HERMES_CONNECTION_FILE: "/absolute/private/path/connection.json"
       HERMES_DEVICE_UPDATE_REQUESTS: "1"
     timeout: 600
 ```
 
-Replace the path, IP address and token. A copy of this configuration is in [bridge/hermes-config.example.yaml](bridge/hermes-config.example.yaml). Protect your Hermes configuration file from other NAS users.
+Replace the script path and use the same pairing profile as the CLI. A copy of this configuration is in [bridge/hermes-config.example.yaml](bridge/hermes-config.example.yaml). For manual mode, replace `auto` with the Kobo's URL and add its `KOBO_TOKEN` explicitly.
 
 On the Kobo, select **Start bridge**. Restart Hermes or start a new Hermes process/session that reloads MCP configuration.
 
 For a direct connection test from the same environment where Hermes runs:
 
 ```sh
-export KOBO_URL='http://192.168.1.123:8675'
-export KOBO_TOKEN='YOUR_GENERATED_TOKEN'
+export KOBO_URL='auto'
 python3 /absolute/path/to/koreader-hermes/bridge/hermes_kobo_mcp.py --doctor
 ```
 
@@ -160,14 +202,16 @@ The result should show the configured roots and permission flags. `--doctor` onl
 
 ## If Hermes runs in Docker on your NAS
 
-The Python bridge must exist **inside the Hermes container**, because Hermes launches it as an MCP subprocess. Add a read-only bind mount to your existing Hermes service, using the real NAS path:
+The Python bridge and connection profile must exist **inside the Hermes container**, because Hermes launches the MCP subprocess there. Mount the complete project writable for project updates and a separate private state directory for credentials, using your real NAS paths:
 
 ```yaml
 services:
   hermes:
     # Keep the existing image, configuration, and other mounts.
+    network_mode: host
     volumes:
       - /your/nas/path/koreader-hermes:/opt/koreader-hermes:rw
+      - /your/nas/path/hermes-kobo-state:/var/lib/hermes-kobo:rw
 ```
 
 Use this path in the Hermes config that the container reads:
@@ -178,20 +222,23 @@ mcp_servers:
     command: python3
     args: ["/opt/koreader-hermes/bridge/hermes_kobo_mcp.py"]
     env:
-      KOBO_URL: "http://192.168.1.123:8675"
-      KOBO_TOKEN: "YOUR_GENERATED_TOKEN"
+      KOBO_URL: "auto"
+      HERMES_CONNECTION_FILE: "/var/lib/hermes-kobo/connection.json"
       HERMES_DEVICE_UPDATE_REQUESTS: "1"
     timeout: 600
 ```
 
-Apply the updated container configuration, then restart Hermes. The container needs Python 3.9+ and outbound TCP access to the Kobo IP on port 8675. There is no NAS listening port to publish for this MCP subprocess. Use the **Kobo's LAN IP**, not `localhost`, in `KOBO_URL`.
+On a Linux NAS, host networking lets broadcast discovery reach the Kobo. If your existing container setup requires Docker bridge networking instead, omit `network_mode: host` and use direct pairing with `--url` plus a manual `KOBO_URL`; plain Docker bridge networking usually does not pass LAN broadcasts. Keep your existing ports/network configuration appropriate for the rest of Hermes.
+
+The container needs outbound TCP access to the Kobo's API and UDP reachability for auto discovery. There is no NAS listening port to publish for the MCP subprocess. Pair **inside** the container so the saved profile belongs to the right user and volume:
 
 To test from inside the container (replace its name):
 
 ```sh
 docker exec -it YOUR_HERMES_CONTAINER sh
-export KOBO_URL='http://192.168.1.123:8675'
-export KOBO_TOKEN='YOUR_GENERATED_TOKEN'
+export HERMES_CONNECTION_FILE='/var/lib/hermes-kobo/connection.json'
+python3 /opt/koreader-hermes/bridge/hermes_kobo_mcp.py --pair
+export KOBO_URL='auto'
 python3 /opt/koreader-hermes/bridge/hermes_kobo_mcp.py --doctor
 ```
 
@@ -215,6 +262,7 @@ The NAS bridge exposes these MCP tools:
 
 | Tool | Purpose |
 | --- | --- |
+| `kobo_discover` | Find local bridges without credentials; results contain no token |
 | `kobo_status` | Connection, roots, permissions and limits |
 | `kobo_list_files` | Paginated directory listing |
 | `kobo_read_file` | Read UTF-8 or base64 and obtain a revision |
@@ -242,7 +290,7 @@ The NAS bridge exposes these MCP tools:
 - Backups and trash consume storage. This version has no permanent-delete tool; clean recovery storage over USB when you are satisfied with the changes. A failed plugin install can leave an `install-*` staging folder there, which can also be cleaned over USB.
 - Replacements use a temporary file and rename, but there is no power-loss durability guarantee. Avoid unplugging/powering off the Kobo during writes.
 - The bridge runs only while KOReader is active and the device is awake. It stops on suspend, standby, network disconnect, Close and exit events, including the Close event before USB storage. Closing a document may also stop the bridge. Start it again from the menu afterward. There is no unattended autostart.
-- The device uses HTTP with a bearer token, **without TLS encryption**. Use it on a trusted private LAN; keep port 8675 off the public internet. The token is stored in KOReader settings and the NAS configuration. For access beyond your LAN, use a private VPN/router arrangement with appropriate routing to the Kobo.
+- The device uses HTTP with a bearer token, **without TLS encryption**. Use it on a trusted private LAN; keep ports 8675/8676 off the public internet. The token is stored in KOReader settings and the private NAS pairing profile, or your legacy NAS configuration. For access beyond your LAN, use a private VPN/router arrangement with appropriate routing to the Kobo; broadcast discovery does not cross ordinary routed networks.
 - Plugin code can do anything KOReader itself can do once loaded. Review generated plugin code before enabling it.
 
 ## Troubleshooting
@@ -250,6 +298,11 @@ The NAS bridge exposes these MCP tools:
 | Symptom | Check |
 | --- | --- |
 | Cannot reach Kobo | Keep it awake, turn on Wi-Fi, verify IP/port, select Start bridge; check guest-network/AP isolation and NAS/container routing |
+| Discovery finds nothing | Check UDP 8676, the discovery switch, interface broadcast and guest/AP isolation; on Docker use host networking or manual `--pair --url` |
+| More than one device found | Pair with `--device-id`; duplicate endpoints for the same ID require an explicit manual URL |
+| Pairing expired or refused | Open a new pairing window, enter the code, and approve the NAS on Kobo; five wrong attempts close the window |
+| CLI pairs but Hermes cannot connect | Use the same OS user/profile path inside Hermes; remove a stale `KOBO_TOKEN` override and persist the state volume |
+| Token was rotated | Pair again; saved profiles using the old token cannot authenticate discovery or API calls |
 | HTTP 401 | Tokens must match exactly; saving a token stops the bridge, so start it again |
 | File/plugin writes refused | Turn on the corresponding permission in the Kobo menu |
 | Revision conflict | Read the file again, reconcile changes, retry with the new revision |

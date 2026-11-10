@@ -2,8 +2,8 @@ local mime = require("mime")
 local API = {}
 API.__index = API
 
-function API.new(fs, settings, reader_settings, updater)
-    return setmetatable({ fs = fs, settings = settings, reader = reader_settings, updater = updater }, API)
+function API.new(fs, settings, reader_settings, updater, connection)
+    return setmetatable({ fs = fs, settings = settings, reader = reader_settings, updater = updater, connection = connection }, API)
 end
 
 local function need(ok, msg) if not ok then error(msg, 0) end end
@@ -26,7 +26,8 @@ function API:call(request)
     local op, scope = request.op, request.scope or "files"
     local fs = self.fs
     if op == "status" then
-        return { version = self.updater and self.updater.running_version or "2.0.1", roots = fs.roots, file_writes = self.settings.allow_writes == true,
+        return { version = self.updater and self.updater.running_version or "2.5.0", roots = fs.roots, file_writes = self.settings.allow_writes == true,
+            device = self.connection and self.connection:identity() or false,
             plugin_changes = self.settings.allow_plugins == true, max_file_bytes = fs.MAX_FILE,
             update_manager = self.updater and self.updater:status() or false,
             plugins_disable_external = self.reader:isTrue("plugins_disable_external") }

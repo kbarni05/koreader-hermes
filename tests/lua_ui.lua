@@ -4,6 +4,14 @@ package.path = project .. "/tests/vendor/?.lua;" .. package.path
 package.preload["libs/libkoreader-lfs"] = function() return require("lfs") end
 package.preload["json"] = function() return require("dkjson") end
 package.preload["ffi/sha2"] = function() return require("koreader_sha2") end
+local Connection = dofile(project .. "/hermes.koplugin/connection.lua")
+local fresh, saved = {}, 0
+Connection.new(fresh, function() saved = saved + 1 end, function() end)
+assert(#fresh.token == 64 and fresh.token:match("^[a-f0-9]+$"))
+assert(#fresh.device_id == 32 and saved == 1)
+local first_token, first_id = fresh.token, fresh.device_id
+Connection.new(fresh, function() saved = saved + 1 end, function() end)
+assert(fresh.token == first_token and fresh.device_id == first_id and saved == 1)
 local Widget = {}
 function Widget:extend(o) o = o or {}; return setmetatable(o, { __index = self }) end
 function Widget:new(o) return self:extend(o) end
@@ -18,6 +26,7 @@ package.preload["ui/uimanager"] = function() return ui end
 for _, name in ipairs({ "infomessage", "inputdialog", "confirmbox" }) do
     package.preload["ui/widget/" .. name] = function() return Widget end
 end
+package.preload["ui/network/manager"] = function() return { runWhenOnline = function(_, callback) callback() end } end
 local settings = { token = "t" .. string.rep("a", 32), files_root = root .. "/files", port = 0 }
 G_reader_settings = { data = { hermes_bridge = settings } }
 function G_reader_settings:readSetting(k, default) return self.data[k] or default end
@@ -29,6 +38,8 @@ local registered
 local instance = main:new{ path = project .. "/hermes.koplugin", ui = { menu = { registerToMainMenu = function(_, value) registered = value end } } }
 instance:init()
 assert(registered == instance)
+assert(settings.token == "t" .. string.rep("a", 32)) -- Preserve an existing token during migration.
+assert(#settings.device_id == 32)
 local menus = {}
 instance:addToMainMenu(menus)
 local menu = menus.hermes_bridge.sub_item_table
@@ -77,4 +88,15 @@ function dialog:getInputText() return string.rep("b", 40) end
 dialog.buttons[1][2].callback()
 assert(settings.token == string.rep("b", 40))
 assert(menu[1].text_func() == "Start bridge")
+local connection_items = {}
+for _, entry in ipairs(item("Connection setup").sub_item_table) do connection_items[entry.text] = entry end
+assert(connection_items["Automatic LAN discovery"].checked_func())
+connection_items["Pair with NAS (2 minutes)"].callback()
+assert(menu[1].text_func() == "Stop bridge")
+connection_items["Close pairing window"].callback()
+connection_items["Generate / rotate token"].callback()
+ui.shown[#ui.shown].ok_callback()
+assert(#settings.token == 64 and settings.token ~= string.rep("b", 40))
+assert(menu[1].text_func() == "Start bridge")
+assert(settings.allow_writes and not settings.allow_plugins)
 print("UI lifecycle OK")

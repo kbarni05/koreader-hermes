@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.5.0 — Discovery and pairing
+
+- Automatic IPv4 LAN discovery on UDP 8676, persistent device IDs and friendly names; no subnet scanning and no bearer tokens in discovery packets.
+- Paired discovery validates an HMAC proof bound to nonce, device ID, source address, port and version before automatic endpoint selection.
+- Secure token generation on the Kobo, explicit token rotation, and preservation of existing tokens during migration.
+- Two-minute pairing windows with a temporary code, mandatory approval on the Kobo, five-attempt lockout and single-use token claims.
+- Private NAS connection profiles outside the project, automatic connection mode, cached discovery and rediscovery on later calls; mutations are never replayed automatically.
+- `--discover`, `--pair`, explicit device selection, manual URL fallback and a credential-free `kobo_discover` MCP tool.
+- Existing static URL/token settings, whole-project updates, rollback and ZenPM remain supported. Includes NAS/Docker profile and network instructions.
+
 ## 2.0.1 — Release download compatibility
 
 - Publish a regular GitHub release marked Latest, with attached plugin and NAS kit ZIPs.

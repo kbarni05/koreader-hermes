@@ -5,8 +5,11 @@ mcp_servers:
     command: python3
     args: ["/absolute/path/to/koreader-hermes/bridge/hermes_kobo_mcp.py"]
     env:
-      KOBO_URL: "http://192.168.1.123:8675"
-      KOBO_TOKEN: "REPLACE_WITH_THE_SAME_TOKEN_AS_ON_THE_KOBO"
+      KOBO_URL: "auto"
+      # Pair first with --pair under the same OS user. Set an explicit shared
+      # profile path here when Hermes runs in Docker or under another service.
+      # HERMES_CONNECTION_FILE: "/var/lib/hermes-kobo/connection.json"
+      # Legacy/manual mode: use a Kobo URL instead of auto and set KOBO_TOKEN.
       # Optional: process update requests from the Kobo menu while Hermes runs.
       HERMES_DEVICE_UPDATE_REQUESTS: "1"
     timeout: 600

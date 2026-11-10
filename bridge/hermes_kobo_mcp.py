@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import getpass
 import json
 import os
 from pathlib import Path
@@ -14,7 +15,10 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-VERSION = "2.0.1"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import kobo_connection
+
+VERSION = "2.5.0"
 MAX_MESSAGE = 2 * 1024 * 1024
 MAX_FILE = 262144
 
@@ -36,6 +40,9 @@ def tool(name, description, op, properties=None, required=()):
 
 
 TOOLS = [
+    tool("kobo_discover", "Find Kobo/Hermes bridges on the local IPv4 network without sending credentials. Returns unverified public device names and IDs; pairing is done locally using the CLI and approval on the Kobo. Discovery requires UDP reachability; it does not scan address ranges.", "discover", {
+        "timeout": {"type": "integer", "minimum": 1, "maximum": 5, "default": 2},
+    }),
     tool("kobo_status", "Check Kobo connectivity, roots, permissions, and file size limit.", "status"),
     tool("kobo_list_files", "Browse a directory on the Kobo. Empty path lists the root. Follow next_offset for more entries.", "list", {"scope": SCOPE, "path": {**PATH, "default": ""}, **PAGING}),
     tool("kobo_read_file", "Read up to 256 KiB. Save the returned revision to edit safely. Use base64 for books/binary files.", "read", {"scope": SCOPE, "path": PATH, "encoding": ENCODING}, ["path"]),
@@ -90,13 +97,7 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
 class KoboClient:
     def __init__(self, url=None, token=None):
-        url = url or os.environ.get("KOBO_URL", "")
-        self.token = token or os.environ.get("KOBO_TOKEN", "")
-        parsed = urllib.parse.urlsplit(url)
-        if parsed.scheme not in ("http", "https") or not parsed.hostname or parsed.username or parsed.password or parsed.path not in ("", "/") or parsed.query or parsed.fragment:
-            raise ValueError("Set KOBO_URL to http://<Kobo-IP>:8675 (no credentials or path)")
-        if not 32 <= len(self.token) <= 128 or any(c not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-" for c in self.token):
-            raise ValueError("Set KOBO_TOKEN to the 32–128 character token configured on the Kobo")
+        url, self.token = kobo_connection.resolve_connection(url, token)
         self.endpoint = url.rstrip("/") + "/v1/rpc"
         # NAS proxy variables must not send the token to an HTTP proxy.
         self.opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
@@ -110,14 +111,18 @@ class KoboClient:
             with self.opener.open(req, timeout=35) as response:
                 raw = response.read(MAX_MESSAGE + 1)
         except urllib.error.HTTPError as exc:
+            if exc.code == 401:
+                kobo_connection.clear_discovery_cache()
             raw = exc.read(8192)
             try:
                 message = json.loads(raw).get("error", "HTTP error")
             except (ValueError, AttributeError):
                 message = "Unexpected HTTP response"
-            raise ValueError(f"Kobo HTTP {exc.code}: {message}") from None
+            hint = "; pair again if the Kobo token was rotated" if exc.code == 401 else ""
+            raise ValueError(f"Kobo HTTP {exc.code}: {message}{hint}") from None
         except (urllib.error.URLError, TimeoutError, OSError):
-            raise ValueError("Cannot reach Kobo. Check Wi-Fi, IP/port, NAS routing, and Start bridge in KOReader. After a timeout, inspect the destination before retrying a write.") from None
+            kobo_connection.clear_discovery_cache()
+            raise ValueError("Cannot reach Kobo. Check Wi-Fi, discovery/UDP 8676, IP/port, NAS routing, and Start bridge in KOReader. Auto mode rediscovers on the next call. After a timeout, inspect the destination before retrying a write; writes are never automatically replayed.") from None
         if len(raw) > MAX_MESSAGE:
             raise ValueError("Kobo response too large")
         result = json.loads(raw)
@@ -150,6 +155,8 @@ def call_tool(client, name, args):
         raise ValueError("Unknown tool")
     spec = BY_NAME[name]
     validate_args(spec, args)
+    if name == "kobo_discover":
+        return {"devices": kobo_connection.discover(timeout=args.get("timeout", 2)), "credentials_sent": False}
     if name == "hermes_check_updates":
         return project_updater().check(client, args.get("allow_preview", False))
     if name == "hermes_update_project":
@@ -204,7 +211,8 @@ def handle(message, client_factory=KoboClient):
         result = {"tools": [{k: v for k, v in t.items() if not k.startswith("_")} for t in TOOLS]}
     elif method == "tools/call":
         try:
-            output = call_tool(client_factory(), params.get("name"), params.get("arguments", {}))
+            name = params.get("name")
+            output = call_tool(None if name == "kobo_discover" else client_factory(), name, params.get("arguments", {}))
             result = {"content": [{"type": "text", "text": json.dumps(output, ensure_ascii=True)}], "isError": False}
         except (ValueError, TypeError, KeyError, OSError) as exc:
             result = {"content": [{"type": "text", "text": str(exc)}], "isError": True}
@@ -286,17 +294,40 @@ def main():
     parser.add_argument("--generate-token", action="store_true", help="Generate a new shared token; no connection")
     parser.add_argument("--doctor", action="store_true", help="Check the configured Kobo connection")
     actions = parser.add_mutually_exclusive_group()
+    actions.add_argument("--discover", action="store_true", help="Find local Kobo bridges without sending a token")
+    actions.add_argument("--pair", action="store_true", help="Pair with a Kobo using its temporary code and on-device approval")
     actions.add_argument("--check-updates", action="store_true", help="Check official updates for both NAS and Kobo")
     actions.add_argument("--update-project", action="store_true", help="Update all managed NAS files and the Kobo plugin")
     actions.add_argument("--rollback-project", metavar="TRANSACTION_ID", help="Restore a matching whole-project update")
     parser.add_argument("--expected-version", help="Version returned by --check-updates; required for --update-project")
     parser.add_argument("--allow-preview", action="store_true", help="Explicitly allow preview update releases")
+    parser.add_argument("--url", help="Explicit Kobo URL for pairing when UDP discovery is unavailable")
+    parser.add_argument("--device-id", help="Select one discovered Kobo for pairing")
+    parser.add_argument("--discovery-target", action="append", help="Local IPv4/broadcast discovery target; repeat for multiple interfaces")
     parser.add_argument("--call", choices=list(BY_NAME), help="Call one tool without an MCP client")
     parser.add_argument("--arguments", default="{}", help="JSON object for --call")
     args = parser.parse_args()
     try:
         if args.generate_token:
             print(secrets.token_urlsafe(32))
+        elif args.discover:
+            print(json.dumps({"devices": kobo_connection.discover(targets=args.discovery_target), "credentials_sent": False}, indent=2))
+        elif args.pair:
+            if args.url:
+                url, device_id = kobo_connection.checked_url(args.url), args.device_id
+            else:
+                found = kobo_connection.select_device(kobo_connection.discover(targets=args.discovery_target), args.device_id)
+                url, device_id = found["url"], found["device_id"]
+                if not found["pairing_open"]:
+                    raise ValueError("Open Pair with NAS on the Kobo before pairing")
+            code = os.environ.get("KOBO_PAIRING_CODE")
+            if not code:
+                if not sys.stdin.isatty():
+                    raise ValueError("Run --pair in an interactive terminal (docker exec -it), or set KOBO_PAIRING_CODE for a headless setup")
+                code = getpass.getpass("Code shown on Kobo: ")
+            result = kobo_connection.pair(url, code, device_id=device_id,
+                on_pending=lambda: print("Approve this NAS on the Kobo screen…", file=sys.stderr, flush=True), auto_discovery=not bool(args.url))
+            print(json.dumps(result, indent=2))
         elif args.check_updates or args.update_project or args.rollback_project:
             updater, client = project_updater(), KoboClient()
             if args.check_updates:
@@ -309,7 +340,7 @@ def main():
                 result = updater.rollback(client, args.rollback_project)
             print(json.dumps(result, ensure_ascii=True, indent=2))
         elif args.doctor or args.call:
-            result = call_tool(KoboClient(), args.call or "kobo_status", json.loads(args.arguments))
+            result = call_tool(None if args.call == "kobo_discover" else KoboClient(), args.call or "kobo_status", json.loads(args.arguments))
             print(json.dumps(result, ensure_ascii=True, indent=2))
         else:
             serve()

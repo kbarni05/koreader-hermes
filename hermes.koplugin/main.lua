@@ -20,6 +20,7 @@ end
 local function info(text) UIManager:show(InfoMessage:new{ text = text }) end
 
 function Hermes:init()
+    self:getConnection()
     self.ui.menu:registerToMainMenu(self)
 end
 
@@ -35,6 +36,73 @@ function Hermes:getUpdater()
         runtime.updater = dofile(base .. "/updater.lua").new(base, settings)
     end
     return runtime.updater
+end
+
+function Hermes:getConnection()
+    if not runtime.connection then
+        local Connection = dofile(self:basePath() .. "/connection.lua")
+        runtime.connection = Connection.new(settings, persist, function(name, finish)
+            if runtime.pair_dialog then UIManager:close(runtime.pair_dialog); runtime.pair_dialog = nil end
+            UIManager:show(ConfirmBox:new{
+                text = "Allow NAS '" .. name .. "' to pair with this Kobo? It will receive the connection token. File/plugin/update permissions remain controlled by your menu switches.",
+                ok_callback = function()
+                    local accepted = finish(true)
+                    info(accepted and "Approved. The NAS can finish pairing now." or "Pairing expired. Open a new pairing window.")
+                end,
+                cancel_callback = function() finish(false) end,
+            })
+        end, { version = self:getUpdater().running_version })
+    end
+    return runtime.connection
+end
+
+function Hermes:pairWithNAS()
+    require("ui/network/manager"):runWhenOnline(function()
+        if not runtime.server then self:start() end
+        if not runtime.server then return end
+        local code = self:getConnection():openPairing()
+        runtime.pair_dialog = InfoMessage:new{
+            text = "Pairing code (valid for 2 minutes):\n\n" .. code
+                .. "\n\nOn the NAS run:\npython3 bridge/hermes_kobo_mcp.py --pair\n\nEnter this code there, then approve the NAS on this screen. The token is saved privately on the NAS.",
+            timeout = 120,
+        }
+        UIManager:show(runtime.pair_dialog)
+    end)
+end
+
+function Hermes:connectionMenu()
+    return {
+        { text = "Pair with NAS (2 minutes)", callback = function() self:pairWithNAS() end },
+        { text = "Close pairing window", callback = function()
+            self:getConnection():closePairing()
+            if runtime.pair_dialog then UIManager:close(runtime.pair_dialog); runtime.pair_dialog = nil end
+            info("Pairing closed.")
+        end },
+        { text = "Generate / rotate token", callback = function()
+            UIManager:show(ConfirmBox:new{
+                text = "Generate a new connection token? This stops the bridge and revokes the old token. Pair the NAS again afterward.",
+                ok_callback = function()
+                    local ok, token = pcall(dofile(self:basePath() .. "/connection.lua").randomHex, 32)
+                    if not ok then info(tostring(token)); return end
+                    self:stop(); settings.token = token; persist()
+                    info("New token generated. Start Pair with NAS to reconnect the NAS. Existing file and plugin settings were preserved.")
+                end,
+            })
+        end },
+        { text = "Show shared token", callback = function() info("Shared token:\n\n" .. settings.token) end },
+        { text = "Automatic LAN discovery", checked_func = function() return settings.discovery_enabled ~= false end,
+            callback = function()
+                local running = runtime.server ~= nil
+                self:stop(); settings.discovery_enabled = settings.discovery_enabled == false; persist()
+                if running then self:start() end
+            end },
+        { text = "Set device name", callback = function()
+            self:edit("Device name shown to your NAS", settings.device_name, function(value)
+                if #value < 1 or #value > 64 or value:find("[%z\1-\31\127]") then return nil, "Use 1–64 characters without control characters." end
+                settings.device_name = value; return true
+            end)
+        end },
+    }
 end
 
 function Hermes:onlineAction(message, action)
@@ -139,6 +207,8 @@ end
 function Hermes:stop()
     if runtime.tick then UIManager:unschedule(runtime.tick); runtime.tick = nil end
     if runtime.server then runtime.server:stop(); runtime.server = nil end
+    if runtime.connection then runtime.connection:stop() end
+    if runtime.pair_dialog then UIManager:close(runtime.pair_dialog); runtime.pair_dialog = nil end
 end
 
 function Hermes:start()
@@ -153,7 +223,8 @@ function Hermes:start()
         local Server = dofile(base .. "/server.lua")
         local fs = FS.new{ files = settings.files_root, plugins = plugin_root }
         fs:root("files"); fs:root("plugins")
-        local server = Server.new(API.new(fs, settings, G_reader_settings, updater), settings.token)
+        local connection = self:getConnection()
+        local server = Server.new(API.new(fs, settings, G_reader_settings, updater, connection), settings.token, connection)
         local started, reason = server:start(settings.host or "0.0.0.0", settings.port or 8675)
         assert(started, reason)
         runtime.server = server
@@ -195,8 +266,12 @@ function Hermes:addToMainMenu(menu_items)
                 info("On your NAS set KOBO_URL=http://<Kobo Wi-Fi IP>:" .. (settings.port or 8675)
                     .. "\nEndpoint: POST /v1/rpc\nStatus: " .. (runtime.server and "running" or "stopped")
                     .. "\nBooks/files: " .. settings.files_root
+                    .. "\nDevice: " .. settings.device_name .. "\nID: " .. settings.device_id
+                    .. "\nLAN discovery: UDP 8676 " .. (settings.discovery_enabled ~= false and "enabled" or "disabled")
+                    .. (runtime.server and runtime.server.discovery_error and "\nDiscovery unavailable: " .. runtime.server.discovery_error or "")
                     .. "\nFind the Kobo IP in KOReader's Network menu or your router. Keep Wi-Fi on and the Kobo awake. The bridge stops on suspend and USB storage mode.")
             end },
+            { text = "Connection setup", sub_item_table = self:connectionMenu() },
             { text = "Update manager", sub_item_table = self:updateMenu() },
             { text = "Set shared token", callback = function()
                 self:edit("Token (32+ letters/digits/_/-; use the same token on your NAS)", settings.token, function(value)

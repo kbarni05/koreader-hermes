@@ -3,6 +3,7 @@ import copy
 import importlib.util
 import json
 import os
+from unittest import mock
 from pathlib import Path
 import select
 import shutil
@@ -215,7 +216,7 @@ class IntegrationTests(unittest.TestCase):
 
     def test_update_integrity_real_lua_commit_and_whole_project_rollback(self):
         from update_fixtures import Fetcher, install, release, updates
-        target, files = release("2.1.0")
+        target, files = release("3.0.0")
         bundle = {item["path"]: base64.b64encode(files["hermes.koplugin/" + item["path"]]).decode() for item in target["plugin"]}
         corrupt = dict(bundle)
         corrupt["main.lua"] = base64.b64encode(b"return {}").decode()
@@ -239,9 +240,9 @@ class IntegrationTests(unittest.TestCase):
             old, old_files = release("2.0.0")
             install(root, old, old_files)
             manager = updates.ProjectUpdater(root, fetch=Fetcher(target, files))
-            result = manager.update(self.client, "2.1.0", True)
+            result = manager.update(self.client, "3.0.0", True)
             status = self.client.request({"op": "update_status"})
-            self.assertEqual(status["installed_version"], "2.1.0")
+            self.assertEqual(status["installed_version"], "3.0.0")
             self.assertEqual(status["running_version"], bridge.VERSION)
             self.assertTrue(status["restart_required"])
             for item in target["plugin"]:
@@ -254,20 +255,137 @@ class IntegrationTests(unittest.TestCase):
     def test_whole_project_request_processed_from_kobo_menu_queue(self):
         from update_fixtures import Fetcher, install, release, updates
         old, old_files = release("2.0.0")
-        target, files = release("2.1.0")
+        target, files = release("3.0.0")
         with tempfile.TemporaryDirectory(prefix="hermes-queued-project-") as temp:
             root = Path(temp)
             install(root, old, old_files)
             manager = updates.ProjectUpdater(root, fetch=Fetcher(target, files))
-            self.client.request({"op": "__test_request", "value": {"id": "test-request", "state": "queued", "expected_version": "2.1.0", "allow_preview": True}})
+            self.client.request({"op": "__test_request", "value": {"id": "test-request", "state": "queued", "expected_version": "3.0.0", "allow_preview": True}})
             try:
                 bridge.poll_device_requests(self.client, manager)
                 status = self.client.request({"op": "update_status"})
                 self.assertEqual(status["request"]["state"], "done", status["request"])
-                self.assertEqual(status["installed_version"], "2.1.0")
+                self.assertEqual(status["installed_version"], "3.0.0")
                 manager.rollback(self.client, manager.state()["id"])
             finally:
                 self.client.request({"op": "__test_request", "value": False})
+
+    def connection_action(self, action, **args):
+        return self.client.request({"op": "__test_connection", "action": action, **args})
+
+    def test_lan_udp_discovery_and_authenticated_device_proof(self):
+        connection = bridge.kobo_connection
+        info = self.connection_action("info")
+        found = connection.discover(timeout=0.15, targets=["127.0.0.1"], port=info["discovery_port"])
+        self.assertEqual(len(found), 1)
+        self.assertEqual(found[0]["url"], self.url)
+        self.assertFalse(found[0]["verified"])
+        found = connection.discover(timeout=0.15, targets=["127.0.0.1"], port=info["discovery_port"], token=TOKEN)
+        self.assertTrue(found[0]["verified"])
+        self.assertEqual(connection.discover(timeout=0.15, targets=["127.0.0.1"], port=info["discovery_port"], token="wrong" * 10), [])
+        self.assertNotIn(TOKEN, json.dumps(found))
+
+    def test_pairing_requires_local_approval_and_is_single_use(self):
+        connection = bridge.kobo_connection
+        code = self.connection_action("open")["code"]
+        nonce = "a" * 32
+        request = {"action": "request", "code": code, "nonce": nonce, "client_name": "Test NAS"}
+        pending = connection.pairing_request(self.url, request)
+        claim = {"action": "claim", "request_id": pending["request_id"], "nonce": nonce}
+        self.assertEqual(connection.pairing_request(self.url, claim), {"state": "pending"})
+        self.connection_action("approve", accepted=False)
+        self.assertEqual(connection.pairing_request(self.url, claim), {"state": "denied"})
+        code = self.connection_action("open")["code"]
+        pending = connection.pairing_request(self.url, {**request, "code": code})
+        claim["request_id"] = pending["request_id"]
+        with self.assertRaises(ValueError):
+            connection.pairing_request(self.url, {**claim, "nonce": "b" * 32})
+        self.connection_action("approve", accepted=True)
+        paired = connection.pairing_request(self.url, claim)
+        self.assertEqual(paired["token"], TOKEN)
+        with self.assertRaises(ValueError):
+            connection.pairing_request(self.url, claim)
+
+    def test_pairing_expiry_and_five_failed_attempts_close_window(self):
+        connection = bridge.kobo_connection
+        code = self.connection_action("open")["code"]
+        request = {"action": "request", "code": code, "nonce": "c" * 32, "client_name": "Test NAS"}
+        self.connection_action("expire")
+        with self.assertRaises(ValueError):
+            connection.pairing_request(self.url, request)
+        code = self.connection_action("open")["code"]
+        for _ in range(5):
+            with self.assertRaises(ValueError):
+                connection.pairing_request(self.url, {**request, "code": "WRONG"})
+        with self.assertRaises(ValueError):
+            connection.pairing_request(self.url, {**request, "code": code})
+        self.connection_action("close")
+
+    def test_pair_save_profile_and_auto_doctor_without_environment_token(self):
+        connection = bridge.kobo_connection
+        info = self.connection_action("info")
+        code = self.connection_action("open")["code"]
+        with tempfile.TemporaryDirectory(prefix="hermes-real-pair-") as temp:
+            profile = str(Path(temp) / "state/connection.json")
+            with mock.patch.dict(os.environ, {"HERMES_CONNECTION_FILE": profile}):
+                result = connection.pair(self.url, code, device_id=info["device_id"], timeout=3,
+                    on_pending=lambda: self.connection_action("approve", accepted=True))
+                self.assertNotIn(TOKEN, json.dumps(result))
+                self.assertEqual(connection.load_profile()["token"], TOKEN)
+                self.assertEqual(Path(profile).stat().st_mode & 0o777, 0o600)
+            env = {**self.env, "HERMES_CONNECTION_FILE": profile, "KOBO_URL": "auto", "KOBO_DISCOVERY_TARGETS": "127.0.0.1", "KOBO_DISCOVERY_PORT": str(info["discovery_port"])}
+            env.pop("KOBO_TOKEN", None)
+            proc = subprocess.run(["python3", str(SCRIPT), "--doctor"], env=env, text=True, capture_output=True, timeout=10)
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            self.assertEqual(json.loads(proc.stdout)["device"]["device_id"], info["device_id"])
+            self.assertNotIn(TOKEN, proc.stdout + proc.stderr)
+
+    def test_mcp_discovery_needs_no_token_or_saved_profile(self):
+        info = self.connection_action("info")
+        env = {**self.env, "KOBO_DISCOVERY_TARGETS": "127.0.0.1", "KOBO_DISCOVERY_PORT": str(info["discovery_port"])}
+        env.pop("KOBO_TOKEN", None)
+        env.pop("KOBO_URL", None)
+        request = {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "kobo_discover", "arguments": {"timeout": 1}}}
+        proc = subprocess.run(["python3", str(SCRIPT)], input=json.dumps(request)+"\n", text=True, capture_output=True, env=env, timeout=5)
+        result = json.loads(proc.stdout)["result"]
+        self.assertFalse(result["isError"], result)
+        found = json.loads(result["content"][0]["text"])
+        self.assertFalse(found["credentials_sent"])
+        self.assertEqual(found["devices"][0]["url"], self.url)
+        self.assertNotIn(TOKEN, proc.stdout+proc.stderr)
+
+    def test_pair_cli_saves_manual_profile_without_printing_secrets(self):
+        code = self.connection_action("open")["code"]
+        with tempfile.TemporaryDirectory(prefix="hermes-cli-pair-") as temp:
+            profile = str(Path(temp) / "connection.json")
+            env = {**self.env, "HERMES_CONNECTION_FILE": profile, "KOBO_PAIRING_CODE": code}
+            env.pop("KOBO_TOKEN", None)
+            proc = subprocess.Popen(["python3", str(SCRIPT), "--pair", "--url", self.url], env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            try:
+                ready, _, _ = select.select([proc.stderr], [], [], 5)
+                self.assertTrue(ready, "pair CLI did not ask for local approval")
+                first = proc.stderr.readline()
+                self.assertIn("Approve", first)
+                self.connection_action("approve", accepted=True)
+                output, errors = proc.communicate(timeout=5)
+                self.assertEqual(proc.returncode, 0, errors)
+                self.assertEqual(json.loads(output)["mode"], "manual")
+                self.assertNotIn(TOKEN, output+errors+first)
+                self.assertNotIn(code, output+errors+first)
+                with mock.patch.dict(os.environ, {"HERMES_CONNECTION_FILE": profile, "KOBO_URL": "", "KOBO_TOKEN": ""}):
+                    self.assertEqual(bridge.kobo_connection.resolve_connection(), (self.url, TOKEN))
+            finally:
+                if proc.poll() is None:
+                    proc.terminate()
+                    proc.communicate(timeout=5)
+
+    def test_failed_write_is_not_replayed_and_auto_cache_is_invalidated(self):
+        client = bridge.KoboClient(self.url, TOKEN)
+        with mock.patch.object(client.opener, "open", side_effect=urllib.error.URLError("timeout")) as opened, mock.patch.object(bridge.kobo_connection, "clear_discovery_cache") as invalidated:
+            with self.assertRaisesRegex(ValueError, "never automatically replayed"):
+                client.request({"op": "write", "path": "test.txt"})
+            self.assertEqual(opened.call_count, 1)
+            invalidated.assert_called_once()
 
 
 if __name__ == "__main__":
