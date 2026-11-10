@@ -4,27 +4,33 @@ local root = assert(os.getenv("HERMES_TEST_ROOT"))
 package.path = project .. "/tests/vendor/?.lua;" .. package.path
 package.preload["libs/libkoreader-lfs"] = function() return require("lfs") end
 package.preload["json"] = function() return require("dkjson") end
+package.preload["ffi/sha2"] = function() return require("koreader_sha2") end
 local lfs = require("lfs")
 for name in lfs.dir(project .. "/hermes.koplugin") do
     if name:match("%.lua$") then assert(loadfile(project .. "/hermes.koplugin/" .. name)) end
 end
 local FS = dofile(project .. "/hermes.koplugin/fs.lua")
 local API = dofile(project .. "/hermes.koplugin/api.lua")
+local Updater = dofile(project .. "/hermes.koplugin/updater.lua")
 local Server = dofile(project .. "/hermes.koplugin/server.lua")
 local reader = { data = {} }
 function reader:readSetting(key, default) return self.data[key] or default end
 function reader:saveSetting(key, value) self.data[key] = value end
 function reader:flush() end
 function reader:isTrue(key) return self.data[key] == true end
-local settings = { allow_writes = true, allow_plugins = true }
+local settings = { allow_writes = true, allow_plugins = true, allow_project_updates = true, preview_updates = true }
 local fs = FS.new{ files = root .. "/files", plugins = root .. "/plugins" }
-local api = API.new(fs, settings, reader)
+local updater = Updater.new(root .. "/plugins/hermes.koplugin", settings)
+local api = API.new(fs, settings, reader, updater)
 -- Test-only permission control, absent from the shipped plugin.
 local call = api.call
 function api:call(request)
+    if request.op == "__test_request" then settings.project_update_request = request.value; return { ok = true } end
     if request.op == "__test_permissions" then
         settings.allow_writes = request.writes == true
         settings.allow_plugins = request.plugins == true
+        settings.allow_project_updates = request.updates ~= false
+        settings.preview_updates = request.previews ~= false
         return { ok = true }
     end
     return call(self, request)

@@ -3,6 +3,7 @@ local project, root = assert(os.getenv("HERMES_PROJECT")), assert(os.getenv("HER
 package.path = project .. "/tests/vendor/?.lua;" .. package.path
 package.preload["libs/libkoreader-lfs"] = function() return require("lfs") end
 package.preload["json"] = function() return require("dkjson") end
+package.preload["ffi/sha2"] = function() return require("koreader_sha2") end
 local Widget = {}
 function Widget:extend(o) o = o or {}; return setmetatable(o, { __index = self }) end
 function Widget:new(o) return self:extend(o) end
@@ -59,6 +60,15 @@ ui.shown[#ui.shown].ok_callback()
 assert(settings.allow_plugins == true)
 item("Allow plugin changes").callback()
 assert(settings.allow_plugins == false)
+local updates = item("Update manager").sub_item_table
+local update_items = {}
+for _, entry in ipairs(updates) do update_items[entry.text] = entry end
+assert(update_items["Update whole project via NAS"])
+assert(not settings.allow_project_updates)
+update_items["Allow project updates"].callback()
+assert(settings.allow_project_updates)
+update_items["Preview updates"].callback()
+assert(settings.preview_updates)
 -- Saving a new token must close the listening socket.
 instance:start()
 item("Set shared token").callback()

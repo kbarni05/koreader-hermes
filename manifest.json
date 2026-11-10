@@ -9,19 +9,21 @@
     {
       "id": "hermes-nas-bridge",
       "name": "Hermes NAS bridge",
-      "description": "Connect Hermes Agent on a NAS to Kobo files and KOReader plugins over your private LAN. Initial hardware-untested preview; NAS setup is required separately.",
+      "description": "Manage Kobo files and plugins with Hermes on a NAS; includes verified updates and rollback for the whole project. Separate NAS setup required.",
       "author": "kbarni05",
       "category": "utility",
-      "platforms": ["koreader"],
+      "platforms": [
+        "koreader"
+      ],
       "dependencies": [],
       "source": "https://github.com/kbarni05/koreader-hermes",
       "source_type": "release",
-      "source_asset": "hermes-koplugin-v1.0.0.zip",
+      "source_asset": "hermes.koplugin.zip",
       "plugin_module": "hermes",
       "version": "",
-      "prerelease_version": "1.0.0",
-      "published_at": "2026-11-10T19:06:08Z",
-      "size": "9861",
+      "prerelease_version": "2.0.0",
+      "published_at": "2026-11-10T19:36:03Z",
+      "size": "15812",
       "readme_url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/main/README.md",
       "versions_url": "versions/hermes.json"
     }

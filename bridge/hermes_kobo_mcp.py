@@ -6,13 +6,15 @@ import argparse
 import base64
 import json
 import os
+from pathlib import Path
 import secrets
 import sys
+import threading
 import urllib.error
 import urllib.parse
 import urllib.request
 
-VERSION = "1.0.0"
+VERSION = "2.0.0"
 MAX_MESSAGE = 2 * 1024 * 1024
 MAX_FILE = 262144
 
@@ -54,8 +56,31 @@ TOOLS = [
     tool("kobo_set_plugin_enabled", "Save a plugin's enabled/disabled setting. Device plugin permission required. Restart KOReader manually to apply. The Hermes bridge cannot modify itself.", "set_plugin_enabled", {
         "path": string("Plugin directory name, e.g. myplugin.koplugin"), "enabled": {"type": "boolean"},
     }, ["path", "enabled"]),
+    tool("hermes_check_updates", "Check the official release and installed/running versions of the NAS project and Kobo plugin. Requires the complete v2 NAS kit and a reachable Kobo.", "project_check", {
+        "allow_preview": {"type": "boolean", "default": False},
+    }),
+    tool("hermes_update_project", "Update the complete managed NAS project AND the Kobo plugin to the checked release. Verifies SHA-256, keeps backups, refuses locally edited managed files, and preserves untracked configuration. Enable project updates on Kobo first; preview releases also need Preview updates. Restart Hermes and KOReader afterward. Do not restart during an active update.", "project_update", {
+        "expected_version": string("Exact latest_version returned by hermes_check_updates"),
+        "allow_preview": {"type": "boolean", "default": False},
+    }, ["expected_version"]),
+    tool("hermes_rollback_project", "Restore NAS managed files and the matching Kobo plugin transaction from the last project update backup. Restores the backed-up managed files; restart Hermes and KOReader afterward. Requires a reachable Kobo and its project-update permission.", "project_rollback", {
+        "transaction_id": string("NAS transaction_id returned by the update or update check"),
+    }, ["transaction_id"]),
 ]
 BY_NAME = {t["name"]: t for t in TOOLS}
+_updater = None
+
+
+def project_updater():
+    global _updater
+    if _updater is None:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        try:
+            from project_updater import ProjectUpdater
+        except ImportError:
+            raise ValueError("Install the complete v2 NAS kit to use the project updater") from None
+        _updater = ProjectUpdater()
+    return _updater
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -125,6 +150,12 @@ def call_tool(client, name, args):
         raise ValueError("Unknown tool")
     spec = BY_NAME[name]
     validate_args(spec, args)
+    if name == "hermes_check_updates":
+        return project_updater().check(client, args.get("allow_preview", False))
+    if name == "hermes_update_project":
+        return project_updater().update(client, args["expected_version"], args.get("allow_preview", False))
+    if name == "hermes_rollback_project":
+        return project_updater().rollback(client, args["transaction_id"])
     payload = {"op": spec["_op"], **args}
     encoding = payload.pop("encoding", "utf8")
     if name == "kobo_set_plugin_enabled":
@@ -182,7 +213,55 @@ def handle(message, client_factory=KoboClient):
     return {"jsonrpc": "2.0", "id": ident, "result": result}
 
 
+def poll_device_requests(client, updater):
+    status = client.request({"op": "update_status"})
+    request = status.get("request")
+    if not isinstance(request, dict) or request.get("state") not in ("queued", "working"):
+        return
+    ident = request["id"]
+    if request.get("state") == "working":
+        state = updater.state()
+        complete = (updater.local_version() == status.get("installed_version") == request.get("expected_version")
+                    and (not state or state.get("phase") in ("installed", "rolled_back")))
+        message = "Update completed before the NAS handler restarted. Restart Hermes and KOReader." if complete else "NAS handler restarted during the update. Check hermes_check_updates and recover its transaction with hermes_rollback_project before requesting another update. Backups are retained."
+        client.request({"op": "update_request_finish", "request_id": ident, "state": "done" if complete else "error", "message": message})
+        return
+    client.request({"op": "update_request_finish", "request_id": ident, "state": "working", "message": "NAS is downloading and verifying the project update"})
+    try:
+        result = updater.update(client, request["expected_version"], request.get("allow_preview", False))
+        message = "Already up to date" if result.get("up_to_date") else "Installed " + result["version"] + ". Restart Hermes and KOReader. Backup: " + result["transaction_id"]
+        client.request({"op": "update_request_finish", "request_id": ident, "state": "done", "message": message})
+    except Exception as exc:
+        try:
+            client.request({"op": "update_request_finish", "request_id": ident, "state": "error", "message": str(exc)})
+        except Exception:
+            pass
+
+
+def request_worker(stop):
+    last_error = None
+    while not stop.is_set():
+        try:
+            poll_device_requests(KoboClient(), project_updater())
+            last_error = None
+        except Exception as exc:
+            if str(exc) != last_error:
+                print("Hermes update request handler: " + str(exc), file=sys.stderr)
+                last_error = str(exc)
+        stop.wait(15)
+
+
 def serve():
+    stop = threading.Event()
+    if os.environ.get("HERMES_DEVICE_UPDATE_REQUESTS") == "1":
+        threading.Thread(target=request_worker, args=(stop,), daemon=True).start()
+    try:
+        serve_messages()
+    finally:
+        stop.set()
+
+
+def serve_messages():
     while True:
         line = sys.stdin.buffer.readline(MAX_MESSAGE + 1)
         if not line:
@@ -206,12 +285,29 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--generate-token", action="store_true", help="Generate a new shared token; no connection")
     parser.add_argument("--doctor", action="store_true", help="Check the configured Kobo connection")
+    actions = parser.add_mutually_exclusive_group()
+    actions.add_argument("--check-updates", action="store_true", help="Check official updates for both NAS and Kobo")
+    actions.add_argument("--update-project", action="store_true", help="Update all managed NAS files and the Kobo plugin")
+    actions.add_argument("--rollback-project", metavar="TRANSACTION_ID", help="Restore a matching whole-project update")
+    parser.add_argument("--expected-version", help="Version returned by --check-updates; required for --update-project")
+    parser.add_argument("--allow-preview", action="store_true", help="Explicitly allow preview update releases")
     parser.add_argument("--call", choices=list(BY_NAME), help="Call one tool without an MCP client")
     parser.add_argument("--arguments", default="{}", help="JSON object for --call")
     args = parser.parse_args()
     try:
         if args.generate_token:
             print(secrets.token_urlsafe(32))
+        elif args.check_updates or args.update_project or args.rollback_project:
+            updater, client = project_updater(), KoboClient()
+            if args.check_updates:
+                result = updater.check(client, args.allow_preview)
+            elif args.update_project:
+                if not args.expected_version:
+                    raise ValueError("Run --check-updates first, then supply --expected-version")
+                result = updater.update(client, args.expected_version, args.allow_preview)
+            else:
+                result = updater.rollback(client, args.rollback_project)
+            print(json.dumps(result, ensure_ascii=True, indent=2))
         elif args.doctor or args.call:
             result = call_tool(KoboClient(), args.call or "kobo_status", json.loads(args.arguments))
             print(json.dumps(result, ensure_ascii=True, indent=2))

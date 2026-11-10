@@ -20,4 +20,6 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-tests/vendor/dkjson.lua carries its own MIT license and copyright notice.
+tests/vendor/dkjson.lua and tests/vendor/koreader_sha2.lua carry their own
+MIT license and copyright notices. They are used by the standalone tests;
+the plugin uses KOReader's bundled JSON and SHA modules.

@@ -2,8 +2,8 @@ local mime = require("mime")
 local API = {}
 API.__index = API
 
-function API.new(fs, settings, reader_settings)
-    return setmetatable({ fs = fs, settings = settings, reader = reader_settings }, API)
+function API.new(fs, settings, reader_settings, updater)
+    return setmetatable({ fs = fs, settings = settings, reader = reader_settings, updater = updater }, API)
 end
 
 local function need(ok, msg) if not ok then error(msg, 0) end end
@@ -26,9 +26,28 @@ function API:call(request)
     local op, scope = request.op, request.scope or "files"
     local fs = self.fs
     if op == "status" then
-        return { version = "1.0.0", roots = fs.roots, file_writes = self.settings.allow_writes == true,
+        return { version = self.updater and self.updater.running_version or "2.0.0", roots = fs.roots, file_writes = self.settings.allow_writes == true,
             plugin_changes = self.settings.allow_plugins == true, max_file_bytes = fs.MAX_FILE,
+            update_manager = self.updater and self.updater:status() or false,
             plugins_disable_external = self.reader:isTrue("plugins_disable_external") }
+    elseif op:match("^update_") then
+        need(self.updater, "Update manager unavailable")
+        if op == "update_status" then return self.updater:status() end
+        need(self.settings.allow_project_updates == true, "Enable project updates on the Kobo first")
+        if op == "update_prepare" then return self.updater:prepare(request.release, request.files)
+        elseif op == "update_commit" then return self.updater:commit(request.transaction_id)
+        elseif op == "update_cancel" then return self.updater:cancel(request.transaction_id)
+        elseif op == "update_rollback" then return self.updater:rollback(request.transaction_id)
+        elseif op == "update_request_finish" then
+            local pending = self.settings.project_update_request
+            need(pending and pending.id == request.request_id, "Update request does not match")
+            need(request.state == "done" or request.state == "error" or request.state == "working", "Invalid request state")
+            need(request.state == "working" and pending.state == "queued" or request.state ~= "working" and pending.state == "working", "Update request was cancelled or already handled")
+            pending.state, pending.message = request.state, tostring(request.message or ""):sub(1, 2048)
+            self.reader:saveSetting("hermes_bridge", self.settings); self.reader:flush()
+            return { ok = true }
+        end
+        error("Unknown update operation", 0)
     elseif op == "list" then
         return fs:list(scope, request.path, request.offset, request.limit)
     elseif op == "read" then
