@@ -1,0 +1,10 @@
+# Merge this entry into ~/.hermes/config.yaml ON THE NAS.
+# Preserve any existing mcp_servers entries.
+mcp_servers:
+  kobo:
+    command: python3
+    args: ["/absolute/path/to/koreader-hermes/bridge/hermes_kobo_mcp.py"]
+    env:
+      KOBO_URL: "http://192.168.1.123:8675"
+      KOBO_TOKEN: "REPLACE_WITH_THE_SAME_TOKEN_AS_ON_THE_KOBO"
+    timeout: 45

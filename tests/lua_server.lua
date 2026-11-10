@@ -1,0 +1,37 @@
+-- Standalone harness: uses the real production FS/API/HTTP implementation.
+local project = assert(os.getenv("HERMES_PROJECT"))
+local root = assert(os.getenv("HERMES_TEST_ROOT"))
+package.path = project .. "/tests/vendor/?.lua;" .. package.path
+package.preload["libs/libkoreader-lfs"] = function() return require("lfs") end
+package.preload["json"] = function() return require("dkjson") end
+local lfs = require("lfs")
+for name in lfs.dir(project .. "/hermes.koplugin") do
+    if name:match("%.lua$") then assert(loadfile(project .. "/hermes.koplugin/" .. name)) end
+end
+local FS = dofile(project .. "/hermes.koplugin/fs.lua")
+local API = dofile(project .. "/hermes.koplugin/api.lua")
+local Server = dofile(project .. "/hermes.koplugin/server.lua")
+local reader = { data = {} }
+function reader:readSetting(key, default) return self.data[key] or default end
+function reader:saveSetting(key, value) self.data[key] = value end
+function reader:flush() end
+function reader:isTrue(key) return self.data[key] == true end
+local settings = { allow_writes = true, allow_plugins = true }
+local fs = FS.new{ files = root .. "/files", plugins = root .. "/plugins" }
+local api = API.new(fs, settings, reader)
+-- Test-only permission control, absent from the shipped plugin.
+local call = api.call
+function api:call(request)
+    if request.op == "__test_permissions" then
+        settings.allow_writes = request.writes == true
+        settings.allow_plugins = request.plugins == true
+        return { ok = true }
+    end
+    return call(self, request)
+end
+local server = Server.new(api, assert(os.getenv("KOBO_TOKEN")))
+assert(server:start("127.0.0.1", 0))
+local _, port = server.listener:getsockname()
+print(port)
+io.stdout:flush()
+while true do server:step(); require("socket").sleep(0.002) end
