@@ -116,6 +116,19 @@ Replace `X.Y.Z` with the checked release version. Add `--allow-preview` only whe
 
 See [CHANGELOG.md](CHANGELOG.md) for the v2 changes.
 
+## New in 2.6: surviving an address change
+
+A paired profile stores the device ID, so a Kobo that receives a different DHCP address does not need a new pairing code.
+
+```sh
+python3 bridge/hermes_kobo_mcp.py --set-url http://192.168.1.123:8675   # repoint, keep the token
+python3 bridge/hermes_kobo_mcp.py --set-url auto                       # switch to discovery mode
+```
+
+A manual-mode profile also recovers by itself on the next **read** (`kobo_status`, `kobo_list_files`, `kobo_read_file`, `kobo_list_recovery`, `kobo_list_plugins`): the bridge rediscovers the stored device ID, checks the HMAC proof, retries that read once, and saves the new address. A write is never replayed after a connection failure — fix the address first, then rerun the write.
+
+Discovery needs UDP broadcast, which a NAT-ed Docker bridge does not deliver. In that kind of container, repoint with `--set-url` and the device's current address, or reserve its address in DHCP; automatic recovery applies where the bridge shares the LAN directly.
+
 ## 1. Install on your Kobo
 
 ### Using ZenPM

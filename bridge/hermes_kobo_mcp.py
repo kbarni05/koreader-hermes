@@ -14,11 +14,12 @@ import threading
 import urllib.error
 import urllib.parse
 import urllib.request
+from typing import cast
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import kobo_connection
 
-VERSION = "2.5.0"
+VERSION = "2.6.0"
 MAX_MESSAGE = 2 * 1024 * 1024
 MAX_FILE = 262144
 
@@ -95,10 +96,15 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         raise ValueError("Kobo endpoint redirected; refusing to forward credentials")
 
 
+READ_ONLY_OPS = frozenset({"status", "list", "read", "recovery", "plugins", "update_status"})
+
+
 class KoboClient:
     def __init__(self, url=None, token=None):
-        url, self.token = kobo_connection.resolve_connection(url, token)
-        self.endpoint = url.rstrip("/") + "/v1/rpc"
+        resolved_url, resolved_token = kobo_connection.resolve_connection(url, token)
+        self.url = resolved_url
+        self.token = cast(str, resolved_token)
+        self.endpoint = self.url.rstrip("/") + "/v1/rpc"
         # NAS proxy variables must not send the token to an HTTP proxy.
         self.opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
 
@@ -106,23 +112,36 @@ class KoboClient:
         data = json.dumps(payload, ensure_ascii=True, separators=(",", ":")).encode("utf-8")
         if len(data) > 786432:
             raise ValueError("Request exceeds the Kobo's 768 KiB transport limit")
-        req = urllib.request.Request(self.endpoint, data=data, headers={"Authorization": "Bearer " + self.token, "Content-Type": "application/json"}, method="POST")
-        try:
-            with self.opener.open(req, timeout=35) as response:
-                raw = response.read(MAX_MESSAGE + 1)
-        except urllib.error.HTTPError as exc:
-            if exc.code == 401:
-                kobo_connection.clear_discovery_cache()
-            raw = exc.read(8192)
+        recovered_once = False
+        while True:
+            req = urllib.request.Request(self.endpoint, data=data, headers={"Authorization": "Bearer " + self.token, "Content-Type": "application/json"}, method="POST")
             try:
-                message = json.loads(raw).get("error", "HTTP error")
-            except (ValueError, AttributeError):
-                message = "Unexpected HTTP response"
-            hint = "; pair again if the Kobo token was rotated" if exc.code == 401 else ""
-            raise ValueError(f"Kobo HTTP {exc.code}: {message}{hint}") from None
-        except (urllib.error.URLError, TimeoutError, OSError):
-            kobo_connection.clear_discovery_cache()
-            raise ValueError("Cannot reach Kobo. Check Wi-Fi, discovery/UDP 8676, IP/port, NAS routing, and Start bridge in KOReader. Auto mode rediscovers on the next call. After a timeout, inspect the destination before retrying a write; writes are never automatically replayed.") from None
+                with self.opener.open(req, timeout=35) as response:
+                    raw = response.read(MAX_MESSAGE + 1)
+                break
+            except urllib.error.HTTPError as exc:
+                if exc.code == 401:
+                    kobo_connection.clear_discovery_cache()
+                raw = exc.read(8192)
+                try:
+                    message = json.loads(raw).get("error", "HTTP error")
+                except (ValueError, AttributeError):
+                    message = "Unexpected HTTP response"
+                hint = "; pair again if the Kobo token was rotated" if exc.code == 401 else ""
+                raise ValueError(f"Kobo HTTP {exc.code}: {message}{hint}") from None
+            except (urllib.error.URLError, TimeoutError, OSError):
+                kobo_connection.clear_discovery_cache()
+                recovered = None
+                # Only a read follows the device to a new address. A write is never
+                # re-sent, because a lost response does not prove it failed.
+                if not recovered_once and payload.get("op") in READ_ONLY_OPS:
+                    recovered_once = True
+                    recovered = kobo_connection.recover(self.url, self.token)
+                if recovered:
+                    self.url = recovered
+                    self.endpoint = recovered.rstrip("/") + "/v1/rpc"
+                    continue
+                raise ValueError("Cannot reach Kobo. Check Wi-Fi, discovery/UDP 8676, IP/port, NAS routing, and Start bridge in KOReader. Auto mode rediscovers on the next call; a paired manual profile recovers on its next read. Run --set-url with the device's current address when discovery is unavailable. After a timeout, inspect the destination before retrying a write; writes are never automatically replayed.") from None
         if len(raw) > MAX_MESSAGE:
             raise ValueError("Kobo response too large")
         result = json.loads(raw)
@@ -296,6 +315,7 @@ def main():
     actions = parser.add_mutually_exclusive_group()
     actions.add_argument("--discover", action="store_true", help="Find local Kobo bridges without sending a token")
     actions.add_argument("--pair", action="store_true", help="Pair with a Kobo using its temporary code and on-device approval")
+    actions.add_argument("--set-url", metavar="URL", help="Repoint the paired profile at a new Kobo address, or 'auto'; keeps the token")
     actions.add_argument("--check-updates", action="store_true", help="Check official updates for both NAS and Kobo")
     actions.add_argument("--update-project", action="store_true", help="Update all managed NAS files and the Kobo plugin")
     actions.add_argument("--rollback-project", metavar="TRANSACTION_ID", help="Restore a matching whole-project update")
@@ -328,6 +348,8 @@ def main():
             result = kobo_connection.pair(url, code, device_id=device_id,
                 on_pending=lambda: print("Approve this NAS on the Kobo screen…", file=sys.stderr, flush=True), auto_discovery=not bool(args.url))
             print(json.dumps(result, indent=2))
+        elif args.set_url:
+            print(json.dumps(kobo_connection.set_url(args.set_url), indent=2))
         elif args.check_updates or args.update_project or args.rollback_project:
             updater, client = project_updater(), KoboClient()
             if args.check_updates:

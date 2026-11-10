@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.6.0 — Address changes without re-pairing
+
+- `--set-url URL` repoints an existing paired profile at a new Kobo address, or `auto`, and keeps the token and device ID, so an address change no longer needs a fresh pairing code.
+- A read-only call that cannot reach a paired manual endpoint rediscovers the stored device ID with the verified HMAC proof, retries that read once, and saves the new address in the profile.
+- Writes are still never replayed after a connection failure; the error names `--set-url` so the address is fixed deliberately before a write is retried.
+- A profile is validated before it is rewritten: an empty or invalid profile is refused instead of being replaced by a token-less entry.
+
 ## 2.5.0 — Discovery and pairing
 
 - Automatic IPv4 LAN discovery on UDP 8676, persistent device IDs and friendly names; no subnet scanning and no bearer tokens in discovery packets.

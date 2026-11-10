@@ -388,5 +388,75 @@ class IntegrationTests(unittest.TestCase):
             invalidated.assert_called_once()
 
 
+class _FakeResponse:
+    def __init__(self, body):
+        self.body = body
+
+    def read(self, _size=None):
+        return self.body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_exc):
+        return False
+
+
+class RecoveryTests(unittest.TestCase):
+    """A stale manual address must be recoverable for reads, never for writes."""
+
+    def client(self, url="http://192.168.1.44:8675"):
+        with mock.patch.object(bridge.kobo_connection, "resolve_connection", return_value=(url, TOKEN)):
+            return bridge.KoboClient()
+
+    def test_read_only_request_retries_once_on_recovered_address(self):
+        client = self.client()
+        body = json.dumps({"result": {"version": "2.6.0"}}).encode()
+        urls = []
+
+        def fake_open(request, timeout=None):
+            urls.append(request.full_url)
+            if len(urls) == 1:
+                raise urllib.error.URLError("timeout")
+            return _FakeResponse(body)
+
+        with mock.patch.object(client.opener, "open", side_effect=fake_open), \
+                mock.patch.object(bridge.kobo_connection, "recover", return_value="http://192.168.1.90:8675") as recover:
+            self.assertEqual(client.request({"op": "status"}), {"version": "2.6.0"})
+        self.assertEqual(len(urls), 2)
+        self.assertTrue(urls[1].startswith("http://192.168.1.90:8675"))
+        self.assertEqual(client.endpoint, "http://192.168.1.90:8675/v1/rpc")
+        recover.assert_called_once()
+
+    def test_mutating_request_is_never_replayed_even_after_recovery(self):
+        client = self.client()
+        urls = []
+
+        def fake_open(request, timeout=None):
+            urls.append(request.full_url)
+            raise urllib.error.URLError("timeout")
+
+        with mock.patch.object(client.opener, "open", side_effect=fake_open), \
+                mock.patch.object(bridge.kobo_connection, "recover", return_value="http://192.168.1.90:8675") as recover:
+            with self.assertRaisesRegex(ValueError, "never automatically replayed"):
+                client.request({"op": "write", "path": "test.txt"})
+        self.assertEqual(len(urls), 1)
+        recover.assert_not_called()
+
+    def test_read_without_a_recovered_address_keeps_the_original_error(self):
+        client = self.client()
+        urls = []
+
+        def fake_open(request, timeout=None):
+            urls.append(request.full_url)
+            raise urllib.error.URLError("timeout")
+
+        with mock.patch.object(client.opener, "open", side_effect=fake_open), \
+                mock.patch.object(bridge.kobo_connection, "recover", return_value=None):
+            with self.assertRaisesRegex(ValueError, "Cannot reach Kobo"):
+                client.request({"op": "list"})
+        self.assertEqual(len(urls), 1)
+
+
 if __name__ == "__main__":
     unittest.main()

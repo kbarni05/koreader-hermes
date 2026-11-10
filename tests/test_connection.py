@@ -100,5 +100,61 @@ class ConnectionTests(unittest.TestCase):
                 connection.discovery_targets(targets)
 
 
+    def test_set_url_repoints_paired_profile_without_printing_token(self):
+        connection.save_profile(self.profile(mode="manual"))
+        result = connection.set_url("http://192.168.1.77:8675")
+        saved = connection.load_profile()
+        self.assertEqual(saved["url"], "http://192.168.1.77:8675")
+        self.assertEqual(saved["token"], TOKEN)
+        self.assertEqual(saved["device_id"], DEVICE_ID)
+        self.assertEqual(saved["mode"], "manual")
+        self.assertEqual(result["mode"], "manual")
+        self.assertNotIn("token", result)
+        self.assertNotIn(TOKEN, json.dumps(result))
+        self.assertEqual(self.file.stat().st_mode & 0o777, 0o600)
+        self.assertEqual(connection.set_url("auto")["mode"], "auto")
+        self.assertEqual(connection.load_profile()["url"], "http://192.168.1.77:8675")
+        for bad in ("file:///tmp", "http://user:pw@host:8675", "http://host:8675/evil"):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                connection.set_url(bad)
+
+    def test_set_url_requires_an_existing_profile(self):
+        with self.assertRaisesRegex(ValueError, "Pair the Kobo"):
+            connection.set_url("http://192.168.1.77:8675")
+        self.assertFalse(self.file.exists())
+
+    def test_recover_finds_moved_device_and_persists_new_address(self):
+        connection.save_profile(self.profile(mode="manual"))
+        moved = {"device_id": DEVICE_ID, "url": "http://192.168.1.90:8675"}
+        with mock.patch.object(connection, "discover", return_value=[moved]) as discover:
+            self.assertEqual(connection.recover(self.profile()["url"], TOKEN), moved["url"])
+        self.assertEqual(discover.call_args.kwargs["token"], TOKEN)
+        self.assertEqual(connection.load_profile()["url"], moved["url"])
+        self.assertEqual(connection.load_profile()["mode"], "manual")
+        self.assertEqual(self.file.stat().st_mode & 0o777, 0o600)
+
+    def test_recover_declines_without_a_single_verified_match(self):
+        connection.save_profile(self.profile(mode="manual"))
+        original = self.profile()["url"]
+        for devices in ([], [{"device_id": "e" * 32, "url": "http://192.168.1.9:8675"}],
+                        [{"device_id": DEVICE_ID, "url": original}]):
+            with self.subTest(devices=devices), mock.patch.object(connection, "discover", return_value=devices):
+                self.assertIsNone(connection.recover(original, TOKEN))
+            self.assertEqual(connection.load_profile()["url"], original)
+        duplicates = [{"device_id": DEVICE_ID, "url": "http://192.168.1.2:8675"},
+                      {"device_id": DEVICE_ID, "url": "http://192.168.1.3:8675"}]
+        with mock.patch.object(connection, "discover", return_value=duplicates), self.assertRaisesRegex(ValueError, "Multiple"):
+            connection.recover(original, TOKEN)
+        self.assertEqual(connection.load_profile()["url"], original)
+
+    def test_recover_ignores_auto_mode_and_foreign_tokens(self):
+        connection.save_profile(self.profile(mode="auto"))
+        with mock.patch.object(connection, "discover", side_effect=AssertionError("auto mode must not recover")):
+            self.assertIsNone(connection.recover("http://192.168.1.44:8675", TOKEN))
+        connection.save_profile(self.profile(mode="manual"))
+        with mock.patch.object(connection, "discover", side_effect=AssertionError("foreign token must not recover")):
+            self.assertIsNone(connection.recover("http://192.168.1.44:8675", "z" * 64))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -194,6 +194,47 @@ def resolve_connection(url=None, token=None):
     return selected["url"], secret
 
 
+def set_url(url, path=None):
+    """Repoint a paired profile at a new address (or "auto"), keeping its token."""
+    profile = load_profile(path)
+    if not profile:
+        raise ValueError("Pair the Kobo with --pair before changing its address")
+    new_url = profile["url"] if url == "auto" else checked_url(url)
+    profile["url"] = new_url
+    profile["mode"] = "auto" if url == "auto" else "manual"
+    save_profile(profile, path)
+    return {"url": profile["url"], "mode": profile["mode"], "connection_file": str(path or profile_path())}
+
+
+def recover(current_url, token):
+    """Find a paired manual-mode device after its address changed.
+
+    Returns the new URL, already persisted in the profile, or None when the
+    device cannot be found unambiguously. Auto mode needs no recovery: it
+    rediscovers on every call.
+    """
+    try:
+        profile = load_profile()
+    except ValueError:
+        return None
+    if profile.get("mode") != "manual" or profile.get("token") != token:
+        return None
+    try:
+        devices = discover(token=token)
+    except (ValueError, OSError):
+        return None
+    matches = [device for device in devices if device.get("device_id") == profile["device_id"]]
+    if not matches:
+        return None
+    if len(matches) > 1:
+        raise ValueError("Multiple Kobo endpoints found; set the correct one with --set-url")
+    new_url = checked_url(matches[0]["url"])
+    if new_url == checked_url(current_url):
+        return None
+    set_url(new_url)
+    return new_url
+
+
 def clear_discovery_cache():
     with _lock:
         _cache.clear()

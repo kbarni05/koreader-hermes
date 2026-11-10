@@ -1,56 +1,56 @@
 {
   "schema_version": 1,
   "repository": "kbarni05/koreader-hermes",
-  "version": "2.5.0",
+  "version": "2.6.0",
   "preview": false,
   "plugin": [
     {
       "path": "_meta.lua",
       "size": 199,
-      "sha256": "40e4b1befc015c582ff3517197197980f41f53179bef409fbd77066696f4a8b7",
-      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.5.0/hermes.koplugin/_meta.lua"
+      "sha256": "20a7ca2b467695605ffa9f66f853ab0a16ab3494aae2ac0c9f3a4f2346ba9a05",
+      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.6.0/hermes.koplugin/_meta.lua"
     },
     {
       "path": "api.lua",
       "size": 6332,
-      "sha256": "b1e70113a5509f6f4d2ef7b3b20c903b841f54dd2f65eb8e411b890d270b1b86",
-      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.5.0/hermes.koplugin/api.lua"
+      "sha256": "2606017cc14bbf8470a48675f0afb33b0b7ecf60ce2d6e8520cc7acb5d93139a",
+      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.6.0/hermes.koplugin/api.lua"
     },
     {
       "path": "connection.lua",
       "size": 6611,
       "sha256": "ae5c2ace2855b52043ece858a79184d595bf64138eefa4b5300f073550bf9ba2",
-      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.5.0/hermes.koplugin/connection.lua"
+      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.6.0/hermes.koplugin/connection.lua"
     },
     {
       "path": "fs.lua",
       "size": 10458,
       "sha256": "0219a4c7be9b5fcb65985cd51ebd4b8eee59e7946e2929e652dcea314792edd1",
-      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.5.0/hermes.koplugin/fs.lua"
+      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.6.0/hermes.koplugin/fs.lua"
     },
     {
       "path": "main.lua",
       "size": 18217,
       "sha256": "7faf76f4a8ad4c8ca33d2e46d02f8d979a40e7faab046dbd18805ead91c52778",
-      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.5.0/hermes.koplugin/main.lua"
+      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.6.0/hermes.koplugin/main.lua"
     },
     {
       "path": "server.lua",
       "size": 5891,
       "sha256": "b90cc5d2df52c191e18d94dd05762b605b1b638d4e6c6cabc428f6d29a7cedfc",
-      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.5.0/hermes.koplugin/server.lua"
+      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.6.0/hermes.koplugin/server.lua"
     },
     {
       "path": "updater.lua",
       "size": 11978,
       "sha256": "3cc7f5dfb5cc32b23fb08d421adeb91710e0ed48103e7e55e3adc84d0191a833",
-      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.5.0/hermes.koplugin/updater.lua"
+      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.6.0/hermes.koplugin/updater.lua"
     },
     {
       "path": "version.lua",
       "size": 15,
-      "sha256": "9800667c3550740f0330d725da27f7bcc745937ff5dd87847467b3117de247b4",
-      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.5.0/hermes.koplugin/version.lua"
+      "sha256": "6df0a9458e391753f47083114cc3a9d8a60dcf0f4102534844737cdc197eb8e1",
+      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.6.0/hermes.koplugin/version.lua"
     }
   ],
   "project": [
@@ -58,175 +58,175 @@
       "path": ".gitignore",
       "size": 47,
       "sha256": "db18b2795f22adf4acfae1ee345988c8d3e19c44a02c79329e92ab06423e1577",
-      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.5.0/.gitignore"
+      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.6.0/.gitignore"
     },
     {
       "path": "CHANGELOG.md",
-      "size": 3168,
-      "sha256": "b940033f4fb7b930a09f85d757695860e6ad642b6a144d1da4306356b003fb59",
-      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.5.0/CHANGELOG.md"
+      "size": 3882,
+      "sha256": "7c361fa1b4fa5d15e6e575207e0b7fe4f634962bae068908441ecda0b626359e",
+      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.6.0/CHANGELOG.md"
     },
     {
       "path": "LICENSE",
       "size": 1295,
       "sha256": "9c41802a1b4f2d1e86fc0cc79fc90f600038d5e2f33a074fdcd75d06273c5eda",
-      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.5.0/LICENSE"
+      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.6.0/LICENSE"
     },
     {
       "path": "README.md",
-      "size": 26953,
-      "sha256": "d59fe51e08a115faf4346bf9d9bcab730e9b94317979815e2505cbc4c558da2a",
-      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.5.0/README.md"
+      "size": 27979,
+      "sha256": "a32c869b55ff5b34c5105a6cebef8a2d1b9531fbc65f39e1e89c259f704c0b41",
+      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.6.0/README.md"
     },
     {
       "path": "VERSION",
       "size": 6,
-      "sha256": "732f64d874f90788c0199b0c19bfd9b3b6436e140114e53e462832532d74c61c",
-      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.5.0/VERSION"
+      "sha256": "6693435eadb673dda297a0652d241e293e361200bc40db949cf2501d18dd01ee",
+      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.6.0/VERSION"
     },
     {
       "path": "bridge/hermes-config.example.yaml",
       "size": 696,
       "sha256": "d28872f667c5e7cc2d12b7e1ac38885228b20c59e409f9f69de479dea58039b3",
-      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.5.0/bridge/hermes-config.example.yaml"
+      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.6.0/bridge/hermes-config.example.yaml"
     },
     {
       "path": "bridge/hermes_kobo_mcp.py",
-      "size": 21318,
-      "sha256": "20e28ed2b07d51f668ad989f9133badac0c3b0d25e487216af4724bff988282a",
-      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.5.0/bridge/hermes_kobo_mcp.py"
+      "size": 22612,
+      "sha256": "1ad09511c81764c93d31d6390721fd852f61d9b6b6b0f8004bb866fc2b586c26",
+      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.6.0/bridge/hermes_kobo_mcp.py"
     },
     {
       "path": "bridge/kobo_connection.py",
-      "size": 11818,
-      "sha256": "08c95329687eeba87e9bcff1e66bb7c9722cfd936a0e85d27d221b7bee86e4ae",
-      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.5.0/bridge/kobo_connection.py"
+      "size": 13342,
+      "sha256": "335a9953b5e4dfbbcd45b2e4ec4cdb4e87e405d6f2ceec309b0be833ee2ca829",
+      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.6.0/bridge/kobo_connection.py"
     },
     {
       "path": "bridge/project_updater.py",
       "size": 19120,
       "sha256": "8676b21e189416660c2387e5f9fd723f454b9bc66d80d016bc9b5fcce8ddfef7",
-      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.5.0/bridge/project_updater.py"
+      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.6.0/bridge/project_updater.py"
     },
     {
       "path": "build_release.py",
       "size": 5067,
       "sha256": "d92034ef9647bb57a8c8091b952a03d0e4fd5edba8387dfd050c6cdf1d0a1b49",
-      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.5.0/build_release.py"
+      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.6.0/build_release.py"
     },
     {
       "path": "hermes.koplugin/_meta.lua",
       "size": 199,
-      "sha256": "40e4b1befc015c582ff3517197197980f41f53179bef409fbd77066696f4a8b7",
-      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.5.0/hermes.koplugin/_meta.lua"
+      "sha256": "20a7ca2b467695605ffa9f66f853ab0a16ab3494aae2ac0c9f3a4f2346ba9a05",
+      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.6.0/hermes.koplugin/_meta.lua"
     },
     {
       "path": "hermes.koplugin/api.lua",
       "size": 6332,
-      "sha256": "b1e70113a5509f6f4d2ef7b3b20c903b841f54dd2f65eb8e411b890d270b1b86",
-      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.5.0/hermes.koplugin/api.lua"
+      "sha256": "2606017cc14bbf8470a48675f0afb33b0b7ecf60ce2d6e8520cc7acb5d93139a",
+      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.6.0/hermes.koplugin/api.lua"
     },
     {
       "path": "hermes.koplugin/connection.lua",
       "size": 6611,
       "sha256": "ae5c2ace2855b52043ece858a79184d595bf64138eefa4b5300f073550bf9ba2",
-      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.5.0/hermes.koplugin/connection.lua"
+      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.6.0/hermes.koplugin/connection.lua"
     },
     {
       "path": "hermes.koplugin/fs.lua",
       "size": 10458,
       "sha256": "0219a4c7be9b5fcb65985cd51ebd4b8eee59e7946e2929e652dcea314792edd1",
-      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.5.0/hermes.koplugin/fs.lua"
+      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.6.0/hermes.koplugin/fs.lua"
     },
     {
       "path": "hermes.koplugin/main.lua",
       "size": 18217,
       "sha256": "7faf76f4a8ad4c8ca33d2e46d02f8d979a40e7faab046dbd18805ead91c52778",
-      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.5.0/hermes.koplugin/main.lua"
+      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.6.0/hermes.koplugin/main.lua"
     },
     {
       "path": "hermes.koplugin/server.lua",
       "size": 5891,
       "sha256": "b90cc5d2df52c191e18d94dd05762b605b1b638d4e6c6cabc428f6d29a7cedfc",
-      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.5.0/hermes.koplugin/server.lua"
+      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.6.0/hermes.koplugin/server.lua"
     },
     {
       "path": "hermes.koplugin/updater.lua",
       "size": 11978,
       "sha256": "3cc7f5dfb5cc32b23fb08d421adeb91710e0ed48103e7e55e3adc84d0191a833",
-      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.5.0/hermes.koplugin/updater.lua"
+      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.6.0/hermes.koplugin/updater.lua"
     },
     {
       "path": "hermes.koplugin/version.lua",
       "size": 15,
-      "sha256": "9800667c3550740f0330d725da27f7bcc745937ff5dd87847467b3117de247b4",
-      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.5.0/hermes.koplugin/version.lua"
+      "sha256": "6df0a9458e391753f47083114cc3a9d8a60dcf0f4102534844737cdc197eb8e1",
+      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.6.0/hermes.koplugin/version.lua"
     },
     {
       "path": "manifest.json",
       "size": 1044,
-      "sha256": "b0d7628cc3749facad1761eef65c1941c2e8710148cdd8991ea0035036bfd10e",
-      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.5.0/manifest.json"
+      "sha256": "b3f1668bb51d2f8d1dc86aa07c5f4efa68eb2134fc549dd5724d2a3bad3113c9",
+      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.6.0/manifest.json"
     },
     {
       "path": "tests/lua_server.lua",
       "size": 3428,
       "sha256": "5e94ef4a2d8d8d77a03d3ddcad65b0f589f22aea6d16bc5d40dd49b25f351773",
-      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.5.0/tests/lua_server.lua"
+      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.6.0/tests/lua_server.lua"
     },
     {
       "path": "tests/lua_ui.lua",
       "size": 5173,
       "sha256": "c52d8d667b3cc43b150eff1ef4c74f80fa02184428d1693ed12999a78462d839",
-      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.5.0/tests/lua_ui.lua"
+      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.6.0/tests/lua_ui.lua"
     },
     {
       "path": "tests/lua_update_failure.lua",
       "size": 2119,
       "sha256": "6319908f6055d316bb8b05723cc7a13c9b9a1b4fca8491d404078bfa75457650",
-      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.5.0/tests/lua_update_failure.lua"
+      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.6.0/tests/lua_update_failure.lua"
     },
     {
       "path": "tests/test_bridge.py",
-      "size": 24091,
-      "sha256": "34509bdb6a9d6072b0d86f949e7305d3693cb09add4d71ac2ba5df8aed416beb",
-      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.5.0/tests/test_bridge.py"
+      "size": 26861,
+      "sha256": "09d1344fc0e4fd801f429f49ed5875b9d3e6f9a6c52092dba4e92afc277a9b93",
+      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.6.0/tests/test_bridge.py"
     },
     {
       "path": "tests/test_connection.py",
-      "size": 5887,
-      "sha256": "22ef1aae033af48384485920027b8526e7ffe6adee1dd091b3372a2ed264a499",
-      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.5.0/tests/test_connection.py"
+      "size": 9406,
+      "sha256": "0e1795ea566d0bda7338eab081c322667a61749b544e2b93f25588167f1a0c1d",
+      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.6.0/tests/test_connection.py"
     },
     {
       "path": "tests/test_updater.py",
       "size": 9927,
       "sha256": "b3974c742ad509e191ae92bff4656752b657636c6fa975348c074e00d3a617aa",
-      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.5.0/tests/test_updater.py"
+      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.6.0/tests/test_updater.py"
     },
     {
       "path": "tests/update_fixtures.py",
       "size": 4356,
       "sha256": "fac5aeed837e92cdc3bba8882a8d9f07fc2050ba549ff4613a3da05f49895464",
-      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.5.0/tests/update_fixtures.py"
+      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.6.0/tests/update_fixtures.py"
     },
     {
       "path": "tests/vendor/dkjson.lua",
       "size": 22416,
       "sha256": "9d3e5c82dcd572a6a4b764d705f72b948094124b0e338cec0d6dfefea59693b7",
-      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.5.0/tests/vendor/dkjson.lua"
+      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.6.0/tests/vendor/dkjson.lua"
     },
     {
       "path": "tests/vendor/koreader_sha2.lua",
       "size": 276232,
       "sha256": "62d2e0885931a1f14db87e61cb3d74936bb5b1e19eb2b4994ab04c03d78f9ed6",
-      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.5.0/tests/vendor/koreader_sha2.lua"
+      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.6.0/tests/vendor/koreader_sha2.lua"
     },
     {
       "path": "versions/hermes.json",
-      "size": 1694,
-      "sha256": "cfac5e8107647b0355e83bf0a7fb4a3c58416a9e32f6b31a5cf24030895a6e42",
-      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.5.0/versions/hermes.json"
+      "size": 2101,
+      "sha256": "5439856cde914b1f1d72c6fb499585196d0b20b048e5aaae64fb39f941b8f6df",
+      "url": "https://raw.githubusercontent.com/kbarni05/koreader-hermes/v2.6.0/versions/hermes.json"
     }
   ]
 }
