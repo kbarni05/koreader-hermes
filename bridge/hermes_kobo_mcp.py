@@ -14,7 +14,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-VERSION = "2.0.0"
+VERSION = "2.0.1"
 MAX_MESSAGE = 2 * 1024 * 1024
 MAX_FILE = 262144
 

@@ -26,7 +26,7 @@ function API:call(request)
     local op, scope = request.op, request.scope or "files"
     local fs = self.fs
     if op == "status" then
-        return { version = self.updater and self.updater.running_version or "2.0.0", roots = fs.roots, file_writes = self.settings.allow_writes == true,
+        return { version = self.updater and self.updater.running_version or "2.0.1", roots = fs.roots, file_writes = self.settings.allow_writes == true,
             plugin_changes = self.settings.allow_plugins == true, max_file_bytes = fs.MAX_FILE,
             update_manager = self.updater and self.updater:status() or false,
             plugins_disable_external = self.reader:isTrue("plugins_disable_external") }

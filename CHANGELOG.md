@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.0.1 — Release download compatibility
+
+- Publish a regular GitHub release marked Latest, with attached plugin and NAS kit ZIPs.
+- Advertise the regular release in ZenPM and the built-in update feed, so beta/preview mode is not required.
+- Keep the original v2.0.0 preview tag and downloads unchanged.
+- Physical Kobo/NAS testing is still needed; this release changes distribution metadata and component version labels.
+
 ## 2.0.0 — Preview
 
 - Built-in KOReader Update manager: version/status display, update checks, verified downloads, install, preview opt-in, and restore previous plugin.

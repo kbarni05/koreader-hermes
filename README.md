@@ -56,12 +56,12 @@ For example, ask Hermes: “Check for project updates, including previews, and u
 Or, with `KOBO_URL` and `KOBO_TOKEN` already set on a Linux/Unix NAS:
 
 ```sh
-python3 bridge/hermes_kobo_mcp.py --check-updates --allow-preview
-python3 bridge/hermes_kobo_mcp.py --update-project --expected-version X.Y.Z --allow-preview
+python3 bridge/hermes_kobo_mcp.py --check-updates
+python3 bridge/hermes_kobo_mcp.py --update-project --expected-version X.Y.Z
 python3 bridge/hermes_kobo_mcp.py --rollback-project TRANSACTION_ID
 ```
 
-Replace `X.Y.Z` with the checked release version. Omit `--allow-preview` for stable releases. The `2.0.0` initial v2 release is a preview; future releases will appear through the same feed. The updater refuses downgrades, changed releases, checksum mismatches, malformed source and locally edited managed NAS files.
+Replace `X.Y.Z` with the checked release version. Add `--allow-preview` only when deliberately selecting a preview. Version `2.0.1` is a regular release and works without preview mode; `2.0.0` remains an earlier preview. The updater refuses downgrades, changed releases, checksum mismatches, malformed source and locally edited managed NAS files.
 
 **Whole project** means the release-managed files: the NAS bridge and updater, plugin source, version files, documentation, test files and package metadata. It does not update Hermes Agent itself, KOReader, Kobo firmware, your books, credentials, or other plugins. `.env`, Hermes configuration, reader settings, `.git` and untracked local files are preserved. Move personal modifications out of managed files or reconcile them before updating.
 
@@ -89,7 +89,7 @@ Once the repository is public, open **ZenPM → Sources → Add repository** and
 https://raw.githubusercontent.com/kbarni05/koreader-hermes/main/
 ```
 
-Refresh sources and enable **Beta updates**, because `v2.0.0` is marked as a preview/prerelease. Find **Hermes NAS bridge** and install it, selecting `v2.0.0` if ZenPM offers a version picker. This unsigned source may show a `warn-unsigned` trust label. Restart KOReader afterward.
+Refresh sources, find **Hermes NAS bridge**, and install `v2.0.1`. Beta updates are not required for this regular release. This unsigned source may show a `warn-unsigned` trust label. Restart KOReader afterward.
 
 ZenPM installs only the Kobo plugin. Continue with **Set up the NAS bridge** below to connect Hermes, configure the shared token, and start the device bridge. Do not choose the complete NAS kit ZIP as a KOReader plugin package.
 

@@ -199,14 +199,14 @@ class IntegrationTests(unittest.TestCase):
         # An incomplete client must not block another request or the UI pump.
         with socket.create_connection(("127.0.0.1", self.port), timeout=5) as slow:
             slow.sendall(b"POST /v1/rpc HTTP/1.1\r\nContent-Length: 100\r\n")
-            self.assertEqual(self.call("kobo_status")["version"], "2.0.0")
+            self.assertEqual(self.call("kobo_status")["version"], bridge.VERSION)
 
     def test_stdio_mcp_to_real_lua_endpoint(self):
         message = {"jsonrpc": "2.0", "id": 9, "method": "tools/call", "params": {"name": "kobo_status", "arguments": {}}}
         proc = subprocess.run(["python3", str(SCRIPT)], input=json.dumps(message) + "\n", text=True, capture_output=True, timeout=10, env=self.env)
         result = json.loads(proc.stdout)["result"]
         self.assertFalse(result["isError"], result)
-        self.assertEqual(json.loads(result["content"][0]["text"])["version"], "2.0.0")
+        self.assertEqual(json.loads(result["content"][0]["text"])["version"], bridge.VERSION)
 
     def test_koreader_menu_and_lifecycle(self):
         proc = subprocess.run([self.lua, str(PROJECT / "tests/lua_ui.lua")], text=True, capture_output=True, timeout=5, env=self.env)
@@ -232,7 +232,7 @@ class IntegrationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Staged checksum"):
             self.client.request({"op": "update_commit", "transaction_id": staged["transaction_id"]})
         self.client.request({"op": "update_cancel", "transaction_id": staged["transaction_id"]})
-        self.assertEqual(self.client.request({"op": "update_status"})["installed_version"], "2.0.0")
+        self.assertEqual(self.client.request({"op": "update_status"})["installed_version"], bridge.VERSION)
         # The NAS coordinator now talks to the real Lua transaction engine.
         with tempfile.TemporaryDirectory(prefix="hermes-real-project-") as temp:
             root = Path(temp)
@@ -242,13 +242,13 @@ class IntegrationTests(unittest.TestCase):
             result = manager.update(self.client, "2.1.0", True)
             status = self.client.request({"op": "update_status"})
             self.assertEqual(status["installed_version"], "2.1.0")
-            self.assertEqual(status["running_version"], "2.0.0")
+            self.assertEqual(status["running_version"], bridge.VERSION)
             self.assertTrue(status["restart_required"])
             for item in target["plugin"]:
                 actual = self.root / "plugins/hermes.koplugin" / item["path"]
                 self.assertEqual(updates.digest(actual.read_bytes()), item["sha256"])
             manager.rollback(self.client, result["transaction_id"])
-            self.assertEqual(self.client.request({"op": "update_status"})["installed_version"], "2.0.0")
+            self.assertEqual(self.client.request({"op": "update_status"})["installed_version"], bridge.VERSION)
             self.assertEqual(manager.local_version(), "2.0.0")
 
     def test_whole_project_request_processed_from_kobo_menu_queue(self):
