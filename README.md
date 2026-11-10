@@ -17,6 +17,31 @@ The plugin provides device tools; Hermes remains the assistant on the NAS. There
 
 ## 1. Install on your Kobo
 
+### Using ZenPM
+
+This repository includes a [ZenPM native source index](manifest.json). **It must be publicly accessible before ZenPM can use it.** GitHub login in your browser does not grant ZenPM access to a private repository or its release downloads.
+
+Once the repository is public, open **ZenPM → Sources → Add repository** and enter this base URL, including the trailing slash:
+
+```text
+https://raw.githubusercontent.com/kbarni05/koreader-hermes/main/
+```
+
+Refresh sources and enable **Beta updates**, because the initial `v1.0.0` release is marked as a preview/prerelease. Find **Hermes NAS bridge** and install it, selecting `v1.0.0` if ZenPM offers a version picker. This unsigned source may show a `warn-unsigned` trust label. Restart KOReader afterward.
+
+ZenPM installs only the Kobo plugin. Continue with **Set up the NAS bridge** below to connect Hermes, configure the shared token, and start the device bridge. Do not choose the complete NAS kit ZIP as a KOReader plugin package.
+
+From the ZenPM command line, the source can be added with:
+
+```sh
+zenpm repo add kbarni05-hermes https://raw.githubusercontent.com/kbarni05/koreader-hermes/main/
+zenpm repo refresh
+```
+
+The source points to the existing plugin-only ZIP, with its size and SHA-256 digest recorded in [versions/hermes.json](versions/hermes.json). Future releases need corresponding updates to the source asset name and versions metadata.
+
+### Using USB
+
 1. Connect the Kobo by USB. Locate your KOReader installation, usually `.adds/koreader/` on the Kobo's storage. Your computer may hide `.adds` until you enable hidden files.
 2. Copy the **entire `hermes.koplugin` folder** into KOReader's `plugins` directory:
 

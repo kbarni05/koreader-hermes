@@ -1,0 +1,17 @@
+{
+  "releases": [
+    {
+      "tag_name": "v1.0.0",
+      "name": "v1.0.0 — Initial preview",
+      "prerelease": true,
+      "assets": [
+        {
+          "name": "hermes-koplugin-v1.0.0.zip",
+          "size": 9861,
+          "digest": "sha256:6b5bfcdc43ccb1840369fd511c350277276c5db6dd34c246ebbf6bc44364954a",
+          "url": "https://github.com/kbarni05/koreader-hermes/releases/download/v1.0.0/hermes-koplugin-v1.0.0.zip"
+        }
+      ]
+    }
+  ]
+}
